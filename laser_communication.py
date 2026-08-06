@@ -16,31 +16,31 @@ class LaserCommunication(tk.Frame):
         laser_ip_connection.connect((laser_ip, TCP_PORT))
         laser_ip_connection.send(message.encode())
         # print("1")
-        laser_dataread = laser_ip_connection.recv(1024).decode()
+        laser_response = laser_ip_connection.recv(1024).decode()
         # print("2")
         laser_ip_connection.close()
 
-        print(laser_dataread)
-        #laser_output_label_display.configure(text=laser_dataread)
+        print(laser_response)
+        #laser_output_label_display.configure(text=laser_response)
 
     def laser_send_command_RS232(self, com_port, command_string):
         # serial port settings
         ser = serial.Serial(com_port, baudrate=57600, timeout=1, parity=serial.PARITY_NONE, bytesize=serial.EIGHTBITS, stopbits=serial.STOPBITS_ONE)
 
-        # add a carrige return to the command
+        # add a carriage return to the command
         message = command_string + "\r"
 
         # Send the command to the laser
         ser.write(message.encode())
         
         # Read the message back from the laser
-        laser_dataread = ser.read()
+        laser_response = ser.read()
 
         #Close the serial connection
         ser.close()
 
-        print(laser_dataread)
-        #laser_output_label_display.configure(text=laser_dataread)
+        print(laser_response)
+        #laser_output_label_display.configure(text=laser_response)
 
     def timed_laser_fire(self):
         # test
@@ -70,17 +70,17 @@ class LaserCommunication(tk.Frame):
         #Frame position information
         self.place(x = x_position, y = y_position)
 
-        disable_hw_emmission_ctrl_button = tk.Button(self, text="Disable HW Emission Control", command=lambda: self.laser_send_command(laser_IP,"DLE"))
-        disable_hw_emmission_ctrl_button.place(x=10, y=20, width=200, height=25)
+        disable_hw_emission_ctrl_button = tk.Button(self, text="Disable HW Emission Control", command=lambda: self.laser_send_command(laser_IP,"DLE"))
+        disable_hw_emission_ctrl_button.place(x=10, y=20, width=200, height=25)
 
-        enable_hw_emmission_ctrl_button = tk.Button(self, text="Enable HW Emission Control", command=lambda: self.laser_send_command(laser_IP,"ELE"))
-        enable_hw_emmission_ctrl_button.place(x=10, y=50, width=200, height=25)
+        enable_hw_emission_ctrl_button = tk.Button(self, text="Enable HW Emission Control", command=lambda: self.laser_send_command(laser_IP,"ELE"))
+        enable_hw_emission_ctrl_button.place(x=10, y=50, width=200, height=25)
 
-        emmission_on_button = tk.Button(self, text="Emission ON", command=lambda: self.laser_send_command(laser_IP,"EMON"))
-        emmission_on_button.place(x=10, y=80, width=200, height=25)
+        emission_on_button = tk.Button(self, text="Emission ON", command=lambda: self.laser_send_command(laser_IP,"EMON"))
+        emission_on_button.place(x=10, y=80, width=200, height=25)
 
-        emmission_off_button = tk.Button(self, text="Emission OFF", command=lambda: self.laser_send_command(laser_IP,"EMOFF"))
-        emmission_off_button.place(x=10, y=110, width=200, height=25)
+        emission_off_button = tk.Button(self, text="Emission OFF", command=lambda: self.laser_send_command(laser_IP,"EMOFF"))
+        emission_off_button.place(x=10, y=110, width=200, height=25)
 
         enable_external_control_button = tk.Button(self, text="Enable External PWR Control", command=lambda: self.laser_send_command(laser_IP,"EEC"))
         enable_external_control_button.place(x=10, y=140, width=200, height=25)

@@ -1,7 +1,7 @@
 import serial
 
 # Function for sending 2 bytes to alter the state of multiple relays at once
-def talktodenk(port, byte1, byte2):
+def send_relay_bytes(port, byte1, byte2):
     # sudo chmod a+rw /dev/ttyUSB0
     # Change /dev/ttyUSB0 to COMx in Windows
 
@@ -23,7 +23,7 @@ def talktodenk(port, byte1, byte2):
 
 # Function to read in the two bytes for the state of the 16 relays
 # 'ask//' is sent and two bytes are sent back
-def readdenk(port):
+def read_denkovi_status(port):
     ser = serial.Serial(port,
                         9600,
                         bytesize=serial.EIGHTBITS,
@@ -34,97 +34,70 @@ def readdenk(port):
     ser.write(b'ask//')
     # time.sleep(.05)
 
-    buffer1 = ser.read(size=1)
-    buffer2 = ser.read(size=1)
+    low_byte = ser.read(size=1)
+    high_byte = ser.read(size=1)
 
     ser.close()
 
-    rel_state1 = [0, 0, 0, 0, 0, 0, 0, 0]
-    rel_state2 = [0, 0, 0, 0, 0, 0, 0, 0]
+    low_byte_relay_states = [0, 0, 0, 0, 0, 0, 0, 0]
+    high_byte_relay_states = [0, 0, 0, 0, 0, 0, 0, 0]
 
-    a = buffer1[0]
-    # print(a)
+    remaining_value = low_byte[0]
     for i in range(8):
-        if a/pow(2, 7-i) >= 1:
-            rel_state1[i] = 1
-            a = a - pow(2, 7-i)
+        if remaining_value/pow(2, 7-i) >= 1:
+            low_byte_relay_states[i] = 1
+            remaining_value = remaining_value - pow(2, 7-i)
         else:
-            rel_state1[i] = 0
-    # print(rel_state1)
+            low_byte_relay_states[i] = 0
 
-    a = buffer2[0]
-    # print(a)
+    remaining_value = high_byte[0]
     for i in range(8):
-        if a/pow(2, 7-i) >= 1:
-            rel_state2[i] = 1
-            a = a - pow(2, 7-i)
+        if remaining_value/pow(2, 7-i) >= 1:
+            high_byte_relay_states[i] = 1
+            remaining_value = remaining_value - pow(2, 7-i)
         else:
-            rel_state2[i] = 0
-    # print(rel_state2)
+            high_byte_relay_states[i] = 0
 
-    rel_state = rel_state1 + rel_state2
-    # print(rel_state)
-    return rel_state
+    relay_states = low_byte_relay_states + high_byte_relay_states
+    return relay_states
 
-def readdenk2(port):
-    ser = serial.Serial(port,
-                        9600,
-                        bytesize=serial.EIGHTBITS,
-                        parity=serial.PARITY_NONE,
-                        stopbits=serial.STOPBITS_ONE,
-                        timeout=1)
+# Packs a 16-element list/string of 0/1 relay states into the two bytes
+# the Denkovi board expects (relay 1-8 in byte1, relay 9-16 in byte2)
+def pack_relay_bytes(relay_states):
+    byte1 = 0
+    byte2 = 0
 
-    ser.write(b'ask//')
-    # time.sleep(.05)
+    for bit in relay_states[0:8]:
+        byte1 = (byte1 << 1) | int(bit)
 
-    buffer = ser.read(2)
-    # buffer2 = ser.read(size=1)
-    
-    ser.close()
+    for bit in relay_states[8:16]:
+        byte2 = (byte2 << 1) | int(bit)
 
-
-    # print(rel_state)
-
-    return buffer
-    
+    return byte1, byte2
 
 # Function to flip one relay of the Denkovi
 # Accepts the port of the Denkovi and the integer of the relay
 def flip_single_relay_status(port, bit):
-    relays = readdenk(port)
+    relays = read_denkovi_status(port)
 
-    # print(relays[bit-1])
     if relays[bit-1] == 1:
         relays[bit-1] = 0
     else:
         relays[bit-1] = 1
 
-    b1_rel = [0, 0, 0, 0, 0, 0, 0, 0]
-    b2_rel = [0, 0, 0, 0, 0, 0, 0, 0]
+    byte1, byte2 = pack_relay_bytes(relays)
 
-    for i in range(8):
-        b1_rel[i] = relays[i]
-        b2_rel[i] = relays[i+8]
+    send_relay_bytes(port, byte1, byte2)
 
-    byte1 = 0
-    byte2 = 0
+# Function to set all 16 relays at once to an absolute state
+# Accepts the port of the Denkovi and a 16-element list/string of 0/1
+def write_relay_state(port, new_relay_state):
+    byte1, byte2 = pack_relay_bytes(new_relay_state)
 
-    for digits in b1_rel:
-        byte1 = (byte1 << 1) | digits
-
-    for digits in b2_rel:
-        byte2 = (byte2 << 1) | digits
-
-    talktodenk(port, byte1, byte2)
+    send_relay_bytes(port, byte1, byte2)
 
 if __name__ == "__main__":
-    
+
     flip_single_relay_status("COM6", 9)
-    #flipbit("COM5", 5)
-    input_buffer = readdenk2("COM6")
-
-        
-    #print(bin(input_buffer[0])[2:].zfill(8))
-   #print(bin(input_buffer[1])[2:].zfill(8))
-
+    print(read_denkovi_status("COM6"))
 

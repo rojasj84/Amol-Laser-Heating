@@ -206,11 +206,11 @@ class AgilisControlPanel(tk.Frame):
             print(self.max_speed)
             
             print(channel,axis,speed)
-            pz_travel_JA(self.agilis_comport,channel,axis,speed)
+            piezo_jog_at_speed(self.agilis_comport,channel,axis,speed)
             print(self.agilis_comport, channel,axis)
 
         def Stop_Piezo_Travel(self,channel,axis):
-            pz_travel_ST(self.agilis_comport, channel,axis)
+            piezo_stop(self.agilis_comport, channel,axis)
 
     class JogSpeedButton(tk.Frame):
         def __init__(self, container, button_text, image_file_location, button_scale, x_location, y_location, speed_change):
@@ -401,7 +401,7 @@ if __name__ == "__main__":
     refresh_time = 100  # time sensors refresh
     win_color = 'light grey'
 
-    pz_RemoteMode()
+    piezo_set_remote_mode()
 
     #***** Building USER GUI *****
 

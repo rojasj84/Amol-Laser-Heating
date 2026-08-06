@@ -1,11 +1,10 @@
 import tkinter as tk
-import numpy as np 
+import numpy as np
 import sys
-import ftd2xx
 
 import import_calibration as calib_find
 from pathlib import Path
-import ftdi_denkokvi_control as ftdenk
+import denkovi_serial as DenkTalk
 
 from watchdog.observers import Observer
 from watchdog.events import PatternMatchingEventHandler
@@ -16,7 +15,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import TemperatureFit.TemperatureFitting as tfit
 import TemperatureFit.SpeFile as spe
 
-default_calubration_temperature = 2255
+default_calibration_temperature = 2255
 
 class LogoDisplay(tk.Frame):
     def __init__(self,container,x_position, y_position):
@@ -64,7 +63,7 @@ class CalibrationFileSelection(tk.Frame):
         set_left_temperature_label = tk.Label(self, text="Left Calib. Temperature (K)",  borderwidth=2, relief="groove", background="white", font=('Helvetica', 10))
         set_left_temperature_label.place(x=10, y=100, width = 200, height=25)
 
-        self.set_left_temperature.insert("end-1c", default_calubration_temperature)
+        self.set_left_temperature.insert("end-1c", default_calibration_temperature)
 
         #Right Side Calibration
         
@@ -84,7 +83,7 @@ class CalibrationFileSelection(tk.Frame):
         set_right_temperature_label = tk.Label(self, text="Right Calib. Temperature (K)",  borderwidth=2, relief="groove", background="white", font=('Helvetica', 10))
         set_right_temperature_label.place(x=10, y=240, width = 200, height=25)
 
-        self.set_right_temperature.insert("end-1c", default_calubration_temperature)
+        self.set_right_temperature.insert("end-1c", default_calibration_temperature)
     
 
     def calibration_file_open_dialog(self, file_location_number):
@@ -103,7 +102,7 @@ class CalibrationFileSelection(tk.Frame):
             self.right_file_location.config(state="disabled")        
     
 class TransmissionFilterSelection(tk.Frame):
-    def __init__(self, container, x_position, y_position):
+    def __init__(self, container, x_position, y_position, left_denkovi_com_port, right_denkovi_com_port):
         #tk.Frame.__init__(self, container)
         super().__init__(container)
 
@@ -121,20 +120,15 @@ class TransmissionFilterSelection(tk.Frame):
         self.select_one_transmission_filter_logo = tk.Label(self, text = "Select Iris Status and Magnification", font=('Helvetica', 15), background="White")
         self.select_one_transmission_filter_logo.place(x=5,y=135, width=920, height=30)
 
-        
-        ftdi_list = ftd2xx.listDevices() #Lists out all connected FTDI devices
-        print(ftdi_list)
-        # Device name is DAE004hC for Right
-        # DAE004hB is Left
+        self.left_denkovi_com_port = left_denkovi_com_port
+        self.right_denkovi_com_port = right_denkovi_com_port
 
-        self.left_denkovi_relays = ftdenk.RelayConnect(b'DAE004hB')
-        self.right_denkovi_relays = ftdenk.RelayConnect(b'DAE004hC')
-        
+
         # Filter Determination Raio Buttons for the Left Side
         
         self.filter_variable_left = tk.IntVar()
         self.iris_variable_left = tk.IntVar()
-        self.magnifaction_varabile_left = tk.IntVar()        
+        self.magnification_variable_left = tk.IntVar()        
 
         self.left_no_filter_selection = tk.Radiobutton(self,text="NO FILTER", font=('Helvetica', 10), indicatoron = 0, variable = self.filter_variable_left, value = 0b000, selectcolor="Light Blue", background="Light Blue", command=self.UpdateFestoStates) #Value corresponds to the binary state of 000 for all 3 NDFs
         self.left_no_filter_selection.place(x=30, y = 50, width=90, height=30)
@@ -167,17 +161,17 @@ class TransmissionFilterSelection(tk.Frame):
         self.left_iris_selection_in = tk.Radiobutton(self, text = "Iris In", font=('Helvetica', 12), indicatoron=0, variable=self.iris_variable_left, value = 0b1, selectcolor="Light Blue", background="Light Blue", command=self.UpdateFestoStates)
         self.left_iris_selection_in.place(x = 130, y = 160, width=90, height=50)
 
-        self.left_magnification_selection_15 = tk.Radiobutton(self, text = "15x", font=('Helvetica', 12), indicatoron=0, variable=self.magnifaction_varabile_left, value = 0b0, selectcolor="Light Blue", background="Light Blue", command=self.UpdateFestoStates)
+        self.left_magnification_selection_15 = tk.Radiobutton(self, text = "15x", font=('Helvetica', 12), indicatoron=0, variable=self.magnification_variable_left, value = 0b0, selectcolor="Light Blue", background="Light Blue", command=self.UpdateFestoStates)
         self.left_magnification_selection_15.place(x = 230, y = 160, width=90, height=50)
         
-        self.left_magnification_selection_20 = tk.Radiobutton(self, text = "20x", font=('Helvetica', 12), indicatoron=0, variable=self.magnifaction_varabile_left, value = 0b1, selectcolor="Light Blue", background="Light Blue", command=self.UpdateFestoStates)
+        self.left_magnification_selection_20 = tk.Radiobutton(self, text = "20x", font=('Helvetica', 12), indicatoron=0, variable=self.magnification_variable_left, value = 0b1, selectcolor="Light Blue", background="Light Blue", command=self.UpdateFestoStates)
         self.left_magnification_selection_20.place(x = 330, y = 160, width=90, height=50)
 
         # Filter Determination Raio Buttons for the Right Side
         
         self.filter_variable_right = tk.IntVar()
         self.iris_variable_right = tk.IntVar()
-        self.magnifaction_varabile_right = tk.IntVar()
+        self.magnification_variable_right = tk.IntVar()
 
         self.right_no_filter_selection = tk.Radiobutton(self,text="NO FILTER", font=('Helvetica', 10), indicatoron = 0, variable = self.filter_variable_right, value = 0b000, selectcolor="Pink", background="Pink", command=self.UpdateFestoStates)
         self.right_no_filter_selection.place(x=930-90-330, y = 50, width=90, height=30)
@@ -210,15 +204,15 @@ class TransmissionFilterSelection(tk.Frame):
         self.right_iris_selection_in = tk.Radiobutton(self, text = "Iris In", font=('Helvetica', 12), indicatoron=0, variable=self.iris_variable_right, value = 1, selectcolor="Pink", background="Pink", command=self.UpdateFestoStates)
         self.right_iris_selection_in.place(x = 930-90-230, y = 160, width=90, height=50)
 
-        self.right_magnification_selection_15 = tk.Radiobutton(self, text = "15x", font=('Helvetica', 12), indicatoron=0, variable=self.magnifaction_varabile_right, value = 0, selectcolor="Pink", background="Pink", command=self.UpdateFestoStates)
+        self.right_magnification_selection_15 = tk.Radiobutton(self, text = "15x", font=('Helvetica', 12), indicatoron=0, variable=self.magnification_variable_right, value = 0, selectcolor="Pink", background="Pink", command=self.UpdateFestoStates)
         self.right_magnification_selection_15.place(x = 930-90-130, y = 160, width=90, height=50)
         
-        self.right_magnification_selection_20 = tk.Radiobutton(self, text = "20x", font=('Helvetica', 12), indicatoron=0, variable=self.magnifaction_varabile_right, value = 1, selectcolor="Pink", background="Pink", command=self.UpdateFestoStates)
+        self.right_magnification_selection_20 = tk.Radiobutton(self, text = "20x", font=('Helvetica', 12), indicatoron=0, variable=self.magnification_variable_right, value = 1, selectcolor="Pink", background="Pink", command=self.UpdateFestoStates)
         self.right_magnification_selection_20.place(x = 930-90-30, y = 160, width=90, height=50)
 
         #self.CalibrationChecking = calib_find.FestoStateCalibrationsCheck("TemperatureFit\calibration_file_table.csv")
-        self.RightCalibrationChecking = calib_find.FestoStateCalibrationsCheck("TemperatureFit\calibration_file_table_right_side.csv")
-        self.LeftCalibrationChecking = calib_find.FestoStateCalibrationsCheck("TemperatureFit\calibration_file_table_left_side.csv")
+        self.RightCalibrationChecking = calib_find.FestoStateCalibrationsCheck(r"TemperatureFit\calibration_file_table_right_side.csv")
+        self.LeftCalibrationChecking = calib_find.FestoStateCalibrationsCheck(r"TemperatureFit\calibration_file_table_left_side.csv")
 
         self.UpdateFestoStates()
 
@@ -227,11 +221,11 @@ class TransmissionFilterSelection(tk.Frame):
         #obtain the states from the radio buttons in the class and format them properly        
         left_three_ndfs_binary = format(self.filter_variable_left.get(), '03b')
         left_iris_binary = format(self.iris_variable_left.get(), '01b')
-        left_magnification_binary = format(self.magnifaction_varabile_left.get(), '01b')
+        left_magnification_binary = format(self.magnification_variable_left.get(), '01b')
 
         right_three_ndfs_binary = format(self.filter_variable_right.get(), '03b')
         right_iris_binary = format(self.iris_variable_right.get(), '01b')
-        right_magnification_binary = format(self.magnifaction_varabile_right.get(), '01b')
+        right_magnification_binary = format(self.magnification_variable_right.get(), '01b')
         
         #create a string of 0s and 1s to send to the festo
         #left_state_binary_string = str(format(0b000,'03b')) + str(left_iris_binary) + str(left_three_ndfs_binary) + str(left_magnification_binary) + str(left_magnification_binary) + str(format(0b010,'03b')) 
@@ -249,8 +243,8 @@ class TransmissionFilterSelection(tk.Frame):
         right_state_binary_string_totransmit = right_state_binary_string + str(format(0b0000,'04b'))
 
         #print(left_state_binary_string_totransmit)
-        self.left_denkovi_relays.write_relay_state(left_state_binary_string_totransmit)
-        self.right_denkovi_relays.write_relay_state(right_state_binary_string_totransmit)
+        DenkTalk.write_relay_state(self.left_denkovi_com_port, left_state_binary_string_totransmit)
+        DenkTalk.write_relay_state(self.right_denkovi_com_port, right_state_binary_string_totransmit)
 
         #Convert into numpy integer array used into the calibration 
         left_side_states = np.array(list(left_state_binary_string), dtype=int)
@@ -306,19 +300,19 @@ class PlotGraphs(tk.Frame):
         self.update_graphs()
 
     def update_graphs(self):
-        A = self.left_calibration_file
-        B = self.data_file
-        C = self.right_calibration_file
+        left_calibration_data = self.left_calibration_file
+        measurement_data = self.data_file
+        right_calibration_data = self.right_calibration_file
 
 
-        ccd_information = A.img
-        ccd_data_size = np.shape(A.img)
+        ccd_information = left_calibration_data.img
+        ccd_data_size = np.shape(left_calibration_data.img)
 
-        ccd_information2 = B.img
-        ccd_data_size2 = np.shape(B.img)
+        ccd_information2 = measurement_data.img
+        ccd_data_size2 = np.shape(measurement_data.img)
 
-        ccd_information3 = C.img
-        ccd_data_size3 = np.shape(C.img)
+        ccd_information3 = right_calibration_data.img
+        ccd_data_size3 = np.shape(right_calibration_data.img)
 
 
         #Setting an ROI for testing purposes 
@@ -344,27 +338,27 @@ class PlotGraphs(tk.Frame):
         self.right_roi_yo = 35
         self.right_roi_yf = 69
         
-        #print(A.x_calibration)
-        #print(A.roi_width)
-        #print(A.roi_y)
-        #print(A.roi_height)
-        
-        
+        #print(left_calibration_data.x_calibration)
+        #print(left_calibration_data.roi_width)
+        #print(left_calibration_data.roi_y)
+        #print(left_calibration_data.roi_height)
+
+
         #Left Spectrum
-        left_x_axis_wavelengths = A.x_calibration[self.left_roi_xo:self.left_roi_xf]        
+        left_x_axis_wavelengths = left_calibration_data.x_calibration[self.left_roi_xo:self.left_roi_xf]
         left_y_axis_ccd_selected_region = ccd_information[self.left_roi_yo:self.left_roi_yf, self.left_roi_xo:self.left_roi_xf]
         left_calibration_summed_ccd_selected_region = np.sum(left_y_axis_ccd_selected_region,axis=0)
-        
-        left_x_axis_wavelengths = B.x_calibration[self.left_roi_xo:self.left_roi_xf]
+
+        left_x_axis_wavelengths = measurement_data.x_calibration[self.left_roi_xo:self.left_roi_xf]
         left_y_axis_ccd_selected_region = ccd_information2[self.left_roi_yo:self.left_roi_yf, self.left_roi_xo:self.left_roi_xf]
         left_summed_ccd_selected_region = np.sum(left_y_axis_ccd_selected_region,axis=0)
 
         #Right Spectrum
-        right_x_axis_wavelengths = C.x_calibration[self.right_roi_xo:self.right_roi_xf]        
+        right_x_axis_wavelengths = right_calibration_data.x_calibration[self.right_roi_xo:self.right_roi_xf]
         right_y_axis_ccd_selected_region = ccd_information3[self.right_roi_yo:self.right_roi_yf, self.right_roi_xo:self.right_roi_xf]
         right_calibration_summed_ccd_selected_region = np.sum(right_y_axis_ccd_selected_region,axis=0)
-        
-        right_x_axis_wavelengths = B.x_calibration[self.right_roi_xo:self.right_roi_xf]
+
+        right_x_axis_wavelengths = measurement_data.x_calibration[self.right_roi_xo:self.right_roi_xf]
         right_y_axis_ccd_selected_region = ccd_information2[self.right_roi_yo:self.right_roi_yf, self.right_roi_xo:self.right_roi_xf]
         right_summed_ccd_selected_region = np.sum(right_y_axis_ccd_selected_region,axis=0)
 
@@ -413,7 +407,7 @@ class PlotGraphs(tk.Frame):
         left_temperature_string = "T= " + str(round(Estimated_Temperature_Left.fit_T)) + " +/- " + str(round(Estimated_Temperature_Left.sigT)) + " K"
         right_temperature_string = "T= " + str(round(Estimated_Temperature_Right.fit_T)) + " +/- " + str(round(Estimated_Temperature_Right.sigT)) + " K"
 
-        # Place the labels containing the temepratures of the fit
+        # Place the labels containing the temperatures of the fit
         self.left_temperature_label = tk.Label(self, text=left_temperature_string, font=('Helvetica', 15), background="White", anchor="w")# highlightbackground="black", highlightthickness=1)
         self.left_temperature_label.place(x=77, y= 30, width = 200, height = 30)
 
@@ -550,13 +544,13 @@ class DataFileHandling(tk.Frame):
 class InitiateActonTfit(tk.Frame):
     #def __init__(self, x_position, y_position):
     #    tk.Frame.__init__(self)
-    def __init__(self, container, x_position, y_position):
+    def __init__(self, container, x_position, y_position, left_denkovi_com_port, right_denkovi_com_port):
         #tk.Frame.__init__(self, container)
         super().__init__(container)
 
         #Frame visual configuration
         self.configure(width=1280,height=1000)
-        
+
         #Frame position information
         self.place(x = x_position, y = y_position)
 
@@ -568,12 +562,12 @@ class InitiateActonTfit(tk.Frame):
 
         self.Logo = LogoDisplay(self, 10,10)
         # CalibrationFile = CalibrationFileSelection(10, 360)
-        self.TransmissionFilter = TransmissionFilterSelection (self, 340, 60)
+        self.TransmissionFilter = TransmissionFilterSelection (self, 340, 60, left_denkovi_com_port, right_denkovi_com_port)
         self.TransmissionFilter.place(x = 340, y = 60)
 
-        self.Tempreature_graphs = PlotGraphs(self, 340, 320, self.left_calibration_file, self.right_calibration_file, default_fit_file)
+        self.Temperature_graphs = PlotGraphs(self, 340, 320, self.left_calibration_file, self.right_calibration_file, default_fit_file)
         self.CalibrationFileSelect = CalibrationFileSelection(self, 10, 90, self.left_calibration_file, self.right_calibration_file, self.autofit_folderpath)
-        self.DataFileSelect = DataFileHandling(self, self.Tempreature_graphs, self.CalibrationFileSelect, 10, 90, self.autofit_folderpath)
+        self.DataFileSelect = DataFileHandling(self, self.Temperature_graphs, self.CalibrationFileSelect, 10, 90, self.autofit_folderpath)
         
         self.DataFileSelect_placedata = self.DataFileSelect.place_info()
         self.CalibrationFileSelect_placedata = self.CalibrationFileSelect.place_info()
@@ -587,14 +581,13 @@ class InitiateActonTfit(tk.Frame):
         self.show_calibration_selection_window.place(x = 10, y = 60, width = 160, height = 25)
         self.show_calibration_selection_window.config(state="active")
 
-    def select_file_handling(self, input):
-        x = 0
-        if input == 1:
+    def select_file_handling(self, selected_window):
+        if selected_window == 1:
             self.DataFileSelect.place_forget()
             self.CalibrationFileSelect.place(self.CalibrationFileSelect_placedata)
             self.show_data_selection_window.config(state="active")
             self.show_calibration_selection_window.config(state="disabled")
-        elif input == 2:
+        elif selected_window == 2:
             self.CalibrationFileSelect.place_forget()
             self.DataFileSelect.place(self.DataFileSelect_placedata)
             self.show_calibration_selection_window.config(state="active")
@@ -607,7 +600,7 @@ if __name__ == "__main__":
     mainwindow.geometry('1280x1000')
     mainwindow.title("High T: Acton-PIXIS 400")
 
-    A = InitiateActonTfit(mainwindow,0,0)
+    A = InitiateActonTfit(mainwindow,0,0,"COM7","COM6")
 
     mainwindow.mainloop()
 

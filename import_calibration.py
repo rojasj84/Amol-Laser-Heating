@@ -33,23 +33,16 @@ class FestoStateCalibrationsCheck:
 
 if __name__ == "__main__":
 
-    A_Win = 'TemperatureFit\calibration_file_table.csv'
-    A_Lin = 'TemperatureFit/calibration_file_table.csv'
+    windows_path_example = r'TemperatureFit\calibration_file_table.csv'
+    linux_path_example = 'TemperatureFit/calibration_file_table.csv'
 
-    Calibrations = FestoStateCalibrationsCheck(A_Lin)
+    Calibrations = FestoStateCalibrationsCheck(linux_path_example)
 
     rows,cols = Calibrations.festo_states.shape
 
     test_list = np.array([1,0,0,1,0,1,0,0,0,0,1,0])
     print(test_list)
 
-    '''for i in range (0, rows):
-        #print(Calibrations.festo_states[i,:].astype(int))
-        
-        are_rows_same = (Calibrations.festo_states[i, :].astype(int) == test_list[:]).all()
-        if 
-        print(are_rows_same, i)'''
-    
-    A = Calibrations.compare_rows_return_calibration_file(test_list)
-    print(A)
+    matched_calibration_file = Calibrations.compare_rows_return_calibration_file(test_list)
+    print(matched_calibration_file)
 

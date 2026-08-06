@@ -143,6 +143,6 @@ if __name__ == "__main__":
     window.geometry("280x445")
     window.configure(bg="light gray")
 
-    A = FestoControlWindow(window, "COM7", "COM6")
+    festo_window = FestoControlWindow(window, "COM7", "COM6")
 
     window.mainloop()

@@ -5,14 +5,15 @@ import time
 #Set comport for agilis
 COMPORT = 'COM10'
 
-def pz_travel_PR(comport,chan,axis,direction,steps):
+# Newport AGILIS command "PR" (Position Relative): move a set number of steps
+def piezo_move_relative(comport,channel,axis,direction,steps):
 
-    str_intruct = str(axis) + "PR"
+    command_string = str(axis) + "PR"
 
     if(direction == 0):
-        str_intruct = str_intruct + "-" + str(steps)
+        command_string = command_string + "-" + str(steps)
     else:
-        str_intruct = str_intruct + str(steps)
+        command_string = command_string + str(steps)
 
     ser = serial.Serial(comport,
                         921600,
@@ -20,15 +21,16 @@ def pz_travel_PR(comport,chan,axis,direction,steps):
                         parity=serial.PARITY_NONE,
                         stopbits=serial.STOPBITS_ONE,
                         timeout=1)
-    ser.write( b'CC' + str(chan).encode('ascii') +  b'\r\n')
-    ser.write( str_intruct.encode('ascii') +  b'\r\n')
+    ser.write( b'CC' + str(channel).encode('ascii') +  b'\r\n')
+    ser.write( command_string.encode('ascii') +  b'\r\n')
     ser.close()
 
-def pz_travel_JA(comport,chan,axis,speed):
+# Newport AGILIS command "JA" (Jog At speed): move continuously until stopped
+def piezo_jog_at_speed(comport,channel,axis,speed):
 
-    str_intruct = str(axis) + "JA"
-    str_intruct = str_intruct + str(speed)
-    #print(str_intruct)
+    command_string = str(axis) + "JA"
+    command_string = command_string + str(speed)
+    #print(command_string)
     ser = serial.Serial(comport,
                         921600,
                         bytesize=serial.EIGHTBITS,
@@ -38,16 +40,17 @@ def pz_travel_JA(comport,chan,axis,speed):
 
     # Perform check for active serial, wait while active
     time.sleep(.01)
-    ser.write( b'CC' + str(chan).encode('ascii') +  b'\r\n')
+    ser.write( b'CC' + str(channel).encode('ascii') +  b'\r\n')
     time.sleep(.01)
-    ser.write( str_intruct.encode('ascii') +  b'\r\n')
+    ser.write( command_string.encode('ascii') +  b'\r\n')
 
     ser.close() # Tells Axis to Jog Move at a certain speed
 
-def pz_travel_ST(comport,chan,axis):
+# Newport AGILIS command "ST" (Stop): halt motion on the given axis
+def piezo_stop(comport,channel,axis):
 
-    str_intruct = str(axis) + "ST"
-    #print(str_intruct)
+    command_string = str(axis) + "ST"
+    #print(command_string)
     ser = serial.Serial(comport,
                         921600,
                         bytesize=serial.EIGHTBITS,
@@ -57,16 +60,18 @@ def pz_travel_ST(comport,chan,axis):
 
     # Perform check for active serial, wait while active
     time.sleep(.01)
-    ser.write( b'CC' + str(chan).encode('ascii') +  b'\r\n')
+    ser.write( b'CC' + str(channel).encode('ascii') +  b'\r\n')
     time.sleep(.01)
-    ser.write( str_intruct.encode('ascii') +  b'\r\n')
+    ser.write( command_string.encode('ascii') +  b'\r\n')
 
     ser.close() # Tells Axis to Stop
 
-def pz_RemoteMode():
+# Newport AGILIS command "MR" (Set Remote Mode): required before the controller
+# will accept computer commands instead of front-panel control
+def piezo_set_remote_mode():
 
-    str_intruct = "MR"
-    #print(str_intruct)
+    command_string = "MR"
+    #print(command_string)
     ser = serial.Serial(COMPORT,
                         921600,
                         bytesize=serial.EIGHTBITS,
@@ -74,6 +79,6 @@ def pz_RemoteMode():
                         stopbits=serial.STOPBITS_ONE,
                         timeout=1)
 
-    ser.write( str_intruct.encode('ascii') +  b'\r\n')
+    ser.write( command_string.encode('ascii') +  b'\r\n')
 
     ser.close() # Tells Axis to Stop

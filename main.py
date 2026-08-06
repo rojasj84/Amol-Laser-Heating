@@ -1,5 +1,6 @@
 # Importing python libraries
 import tkinter as tk
+import serial.tools.list_ports
 from PIL import ImageTk, Image
 
 # Importing local libraries
@@ -9,7 +10,6 @@ from acton_pixis import *
 from piezo_motor_control import *
 from laser_communication import *
 from festo_control import *
-from comport_selection import *
 
 win_color = "light gray"
 
@@ -90,7 +90,7 @@ class ComPort_Controls(tk.Toplevel):
         if PiezoControlWindow.winfo_exists():
             #update global variable
             globals()['agilis_com_port'] = self.local_agilis_com_port.get()
-            #settingt the com ports for laser 1 and laser 2 piezos if window already xists
+            #setting the com ports for laser 1 and laser 2 piezos if window already exists
             PiezoControlWindow.PiezoControlClass.laser1_PiezoMotors.Laser_Jog_Down.agilis_comport = self.local_agilis_com_port.get()
             PiezoControlWindow.PiezoControlClass.laser1_PiezoMotors.Laser_Jog_Up.agilis_comport = self.local_agilis_com_port.get()
             PiezoControlWindow.PiezoControlClass.laser1_PiezoMotors.Laser_Jog_Right.agilis_comport = self.local_agilis_com_port.get()
@@ -154,7 +154,7 @@ if __name__ == "__main__":
     photo = ImageTk.PhotoImage(ico)
     window.wm_iconphoto(False, photo)
     
-    ActonControlWindow = ActonPixis = InitiateActonTfit(window, 0,0)
+    ActonControlWindow = ActonPixis = InitiateActonTfit(window, 0,0, left_denkovi_com_port, right_denkovi_com_port)
     LaserControlWindow = Laser_Controls()
     PiezoControlWindow = Piezo_Controls()
     FestControlWindow = Festo_Controls()

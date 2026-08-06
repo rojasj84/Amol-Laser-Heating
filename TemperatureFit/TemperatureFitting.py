@@ -38,53 +38,51 @@ class Temperature_Measurement(object):
 
         # Convert wavelength numbers to meters from nanometers
         wavelengths = np.divide(wavelengths,10**9)
-        
-        #Calculating Black Body Radiance
-        A = np.reciprocal(np.power(wavelengths,5))*2*h*c**2
-        B = np.reciprocal(np.exp((h*c/(k*temperature))*np.reciprocal(wavelengths))-1)
 
-        return epsilon*A*B
+        #Calculating Black Body Radiance
+        planck_prefactor = np.reciprocal(np.power(wavelengths,5))*2*h*c**2
+        planck_occupation_factor = np.reciprocal(np.exp((h*c/(k*temperature))*np.reciprocal(wavelengths))-1)
+
+        return epsilon*planck_prefactor*planck_occupation_factor
         #return epsilon*2*h*(c**2)/(wavelengths**5*(np.exp((h*c)/(wavelengths*k*temperature)) - 1))         
 
-    def generate_blackbody_spectrum(self, temperature, wavelenths):        
+    def generate_blackbody_spectrum(self, temperature, wavelengths):        
 
         #Call function of black body to generate the black body curve for temperature in the given wavelength
-        self.black_body_spectrum= self.f_Planck(wavelenths, temperature, 1)
+        self.black_body_spectrum= self.f_Planck(wavelengths, temperature, 1)
 
-        b = 2.897771955*10**-3 #m⋅K used for Wein's law to find the maximum lambda        
+        b = 2.897771955*10**-3 #m⋅K used for Wien's law to find the maximum lambda
         lambda_maximum = np.array([b/temperature*10**9])
         self.black_body_maximum_radiance = self.f_Planck(lambda_maximum, temperature, 1)
         #print(self.black_body_maximum_radiance)
     
     def generate_correction_transfer_function(self, calibration_temperature_spectrum):
-            
-        ndim_value_calibration_temperature_spectrum = np.max(calibration_temperature_spectrum)
-        self.ndim_value_blackbody = self.black_body_maximum_radiance[0]
-        
+
+        calibration_spectrum_peak_value = np.max(calibration_temperature_spectrum)
+        self.blackbody_peak_value = self.black_body_maximum_radiance[0]
+
         #normalized black body spectrum
-        A = self.black_body_spectrum/self.ndim_value_blackbody
-        
+        normalized_blackbody_spectrum = self.black_body_spectrum/self.blackbody_peak_value
+
         #Correcting for a count exactly equal to 0
         calibration_temperature_spectrum[calibration_temperature_spectrum == 0] = 1
-        B = calibration_temperature_spectrum/ndim_value_calibration_temperature_spectrum
-        
-        #Normallized transfer function (ideal lack body over calibrated)
-        self.ndim_transfer_function = A/B
+        normalized_calibration_spectrum = calibration_temperature_spectrum/calibration_spectrum_peak_value
 
-        #self.transfer_function = self.black_body_spectrum/(calibration_temperature_spectrum)
+        #Normalized transfer function (ideal black body over calibrated)
+        self.normalized_transfer_function = normalized_blackbody_spectrum/normalized_calibration_spectrum
 
     def generate_corrected_spectrum_unknown_T(self, unknown_temperature_counts):
-        #Uses the transfer function to convert the unknown spectrum into a corrected black body spectrum     
-        ndim_value_unknown_temperature_counts = np.max(unknown_temperature_counts)
-        
+        #Uses the transfer function to convert the unknown spectrum into a corrected black body spectrum
+        unknown_spectrum_peak_value = np.max(unknown_temperature_counts)
+
         #normalized gray body spectrum
         #Correcting for counts less than 1
         unknown_temperature_counts[unknown_temperature_counts == 0] = 1
         unknown_temperature_counts = np.absolute(unknown_temperature_counts)
-        A = unknown_temperature_counts/ndim_value_unknown_temperature_counts
+        normalized_unknown_spectrum = unknown_temperature_counts/unknown_spectrum_peak_value
 
         #gray body spectrum scaled up to values of a black body after transformation via the normalized transfer function
-        self.unknown_graybody_spectrum = A*self.ndim_transfer_function*self.ndim_value_blackbody
+        self.unknown_graybody_spectrum = normalized_unknown_spectrum*self.normalized_transfer_function*self.blackbody_peak_value
         
     def generate_estimated_temperature_spectrum(self, wavelengths):
         #Uses the transfer function to convert the unknown spectrum into a a corrected black body spectrum     
@@ -94,16 +92,16 @@ class Temperature_Measurement(object):
 
 if __name__ == "__main__":
     
-    wavelenths = np.zeros(200)
+    wavelengths = np.zeros(200)
     
-    for i in range(0,len(wavelenths)):
-            wavelenths[i] = 100+i*20
+    for i in range(0,len(wavelengths)):
+            wavelengths[i] = 100+i*20
 
-    test_spectrum = Temperature_Measurement(2000, 0.5, 5000, wavelenths, wavelenths, wavelenths)
+    test_spectrum = Temperature_Measurement(2000, 0.5, 5000, wavelengths, wavelengths, wavelengths)
 
-    black_body_spectrum = test_spectrum.transfer_function
+    black_body_spectrum = test_spectrum.normalized_transfer_function
 
-    print(wavelenths[45],black_body_spectrum[45])
+    print(wavelengths[45],black_body_spectrum[45])
     #plt.xscale('log')
-    #plt.plot(wavelenths, black_body_spectrum)
+    #plt.plot(wavelengths, black_body_spectrum)
     #plt.show()
