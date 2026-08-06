@@ -99,14 +99,14 @@ class CalibrationFileSelection(tk.Frame):
 
     def update_status(self, left_exists, right_exists):
         if left_exists:
-            self.left_status_label.config(text="Left Calib: OK", fg="#4CAF50")
+            self.left_status_label.config(text="Left Calibration File: OK", fg="#4CAF50")
         else:
-            self.left_status_label.config(text="Left state has no Calibration File", fg="#FF5252")
+            self.left_status_label.config(text="Left Calibration File: Missing", fg="#FF5252")
 
         if right_exists:
-            self.right_status_label.config(text="Right Calib: OK", fg="#4CAF50")
+            self.right_status_label.config(text="Right Calibration File: OK", fg="#4CAF50")
         else:
-            self.right_status_label.config(text="Right state has no Calibration File", fg="#FF5252")
+            self.right_status_label.config(text="Right Calibration File: Missing", fg="#FF5252")
 
     def has_valid_calibration(self):
         left_path_str = self.left_file_location.get("1.0", tk.END).strip().replace("\n", "")
