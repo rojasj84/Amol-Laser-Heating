@@ -1,0 +1,7 @@
+# File	Path	T_DS	T_US	Detector	Exposure Time [sec]
+L_2255K_15x_wI.spe	C:/Users/jarojas/Desktop/Laser Heating/T_Calib_20250314/15xMag	2255	2797	PIXIS: 400B	2.0
+R_2255K_15x_wI.spe	C:/Users/jarojas/Desktop/Laser Heating/T_Calib_20250314/15xMag	1259	2255	PIXIS: 400B	2.0
+L_2255K_15x_wI.spe	C:/Users/jarojas/Desktop/Laser Heating/T_Calib_20250314/15xMag	2255	2454	PIXIS: 400B	2.0
+# File	Path	T_DS	T_US	Detector	Exposure Time [sec]
+L_2255K_15x_wI.spe	C:/Users/jarojas/Desktop/Laser Heating/T_Calib_20250314/15xMag	NaN	NaN	PIXIS: 400B	2.0
+L_2255K_15x_wI.spe	C:/Users/jarojas/Desktop/Laser Heating/T_Calib_20250314/15xMag	NaN	NaN	PIXIS: 400B	2.0
