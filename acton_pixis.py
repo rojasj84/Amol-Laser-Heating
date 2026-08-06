@@ -1,6 +1,7 @@
 import tkinter as tk
 import numpy as np
 import sys
+import queue
 
 import import_calibration as calib_find
 from pathlib import Path
@@ -431,6 +432,13 @@ class DataFileHandling(tk.Frame):
         self.automatic_fitting_button_state = tk.IntVar()
         self.auto_fitting_folder_path = tk.StringVar()
 
+        # watchdog calls file_created() on its own background thread, but Tkinter/matplotlib
+        # calls are only safe from the main thread. New files are handed off through this
+        # thread-safe queue and actually processed in file_fitting_thread(), which runs on
+        # the main thread via self.after().
+        self._new_spe_file_queue = queue.Queue()
+        self._spe_file_retry_counts = {}
+
         #Frame buttons and labels
         self.select_lightfield_spectra = tk.Button(self, text="Select Single .spe for T-fit", font=('Helvetica', 10), command=lambda: self.data_file_open_dialog(1))
         self.select_lightfield_spectra.place(x = 10, y = 10, width=300, height = 30)
@@ -455,38 +463,49 @@ class DataFileHandling(tk.Frame):
         self.select_folder_to_save_tfit = tk.Button(self, text="Save Temperature Fit", font=('Helvetica', 10), command=lambda: self.data_file_open_dialog(2))
         self.select_folder_to_save_tfit.place(x = 10, y = 325, width=300, height = 30)
 
-    # Create the handling for adding an spe file automatically when created in the folder
-    #This is the event that watchdog is looking for.
+    # This is the event that watchdog calls when a new .spe file appears in the watched
+    # folder. IMPORTANT: this runs on watchdog's own background thread, not the Tkinter
+    # main thread, so it must NOT touch any Tkinter widgets or the matplotlib canvas
+    # directly - doing so is unsafe and was the likely source of past intermittent
+    # glitches. It only hands the path off; file_fitting_thread() does the real work.
     def file_created(self, event):
-        #print(f"hey, {event.src_path} has been created!")
-        #Update the values in the plots class
+        self._new_spe_file_queue.put(event.src_path)
 
-        #Update the calibration files and temperatures
-        left_calibration_file_location = r"{}".format(self.calibration_files.left_file_location.get("1.0",tk.END))            
-        left_calibration_file_location = left_calibration_file_location.replace("\n", "")
+    # Runs on the main thread (via self.after below), so it's safe to update the plots here.
+    def process_new_spe_file(self, file_path):
+        try:
+            #Update the calibration files and temperatures
+            left_calibration_file_location = r"{}".format(self.calibration_files.left_file_location.get("1.0",tk.END))
+            left_calibration_file_location = left_calibration_file_location.replace("\n", "")
 
-        right_calibration_file_location = r"{}".format(self.calibration_files.right_file_location.get("1.0",tk.END))
-        right_calibration_file_location = right_calibration_file_location.replace("\n", "")
+            right_calibration_file_location = r"{}".format(self.calibration_files.right_file_location.get("1.0",tk.END))
+            right_calibration_file_location = right_calibration_file_location.replace("\n", "")
 
-        #Update the calibration temperature values
-        left_calibration_temperature = float(self.calibration_files.set_left_temperature.get("1.0",tk.END))
-        right_calibration_temperature = float(self.calibration_files.set_left_temperature.get("1.0",tk.END))
+            #Update the calibration temperature values
+            left_calibration_temperature = float(self.calibration_files.set_left_temperature.get("1.0",tk.END))
+            right_calibration_temperature = float(self.calibration_files.set_right_temperature.get("1.0",tk.END))
 
-        self.plots.left_calibration_temperature = left_calibration_temperature
-        self.plots.right_calibration_temperature = right_calibration_temperature
-        self.plots.left_calibration_file = spe.SpeFile(left_calibration_file_location)
-        self.plots.right_calibration_file = spe.SpeFile(right_calibration_file_location)
-        self.plots.data_file = spe.SpeFile(r'{}'.format(event.src_path))
-        self.plots.update_graphs()
+            self.plots.left_calibration_temperature = left_calibration_temperature
+            self.plots.right_calibration_temperature = right_calibration_temperature
+            self.plots.left_calibration_file = spe.SpeFile(left_calibration_file_location)
+            self.plots.right_calibration_file = spe.SpeFile(right_calibration_file_location)
+            self.plots.data_file = spe.SpeFile(r'{}'.format(file_path))
+            self.plots.update_graphs()
+            return True
+        except Exception as read_error:
+            # Most likely the acquisition software is still writing this file - retry
+            # on the next poll instead of losing it.
+            print(f"Could not process {file_path} yet ({read_error})")
+            return False
 
     def automatic_file_fitting(self):
         if self.automatic_fitting_button_state.get() == 1:
             print("Automatic file fitting enabled")
 
-            #Create the watchdog that looks out for new files created in selected directory
+            #Create the watchdog that looks out for new .spe files created in selected directory
             self.folder_path = self.selected_folder_to_save_tfit.get("1.0",tk.END).strip()  # Current directory, can be changed to the desired folder path
-            self.folder_path = self.folder_path.replace("/", "\\")        
-            self.my_event_handler = PatternMatchingEventHandler()
+            self.folder_path = self.folder_path.replace("/", "\\")
+            self.my_event_handler = PatternMatchingEventHandler(patterns=["*.spe"], ignore_directories=True)
             self.my_event_handler.on_created = self.file_created
             self.my_observer = Observer()
             self.my_observer.schedule(self.my_event_handler, self.folder_path, recursive=True)
@@ -494,12 +513,31 @@ class DataFileHandling(tk.Frame):
             #Starts watchdog and calls for function to check
             self.my_observer.start()
             self.file_fitting_thread()
-    
-    #Checks for new files and waits until the checkbox is unchecked to stop the watchdog
+
+    #Runs on the main thread. Drains any new files watchdog has queued up and processes
+    #them here (where it's safe to touch the GUI), then waits until the checkbox is
+    #unchecked to stop the watchdog.
     def file_fitting_thread(self):
-        if self.automatic_fitting_button_state.get() == 1:            
+        pending_files = []
+        while not self._new_spe_file_queue.empty():
+            pending_files.append(self._new_spe_file_queue.get())
+
+        max_retries = 5
+        for file_path in pending_files:
+            if self.process_new_spe_file(file_path):
+                self._spe_file_retry_counts.pop(file_path, None)
+            else:
+                retry_count = self._spe_file_retry_counts.get(file_path, 0) + 1
+                if retry_count <= max_retries:
+                    self._spe_file_retry_counts[file_path] = retry_count
+                    self._new_spe_file_queue.put(file_path)
+                else:
+                    print(f"Giving up on {file_path} after {max_retries} attempts")
+                    del self._spe_file_retry_counts[file_path]
+
+        if self.automatic_fitting_button_state.get() == 1:
             self.after(1000, self.file_fitting_thread)
-        else:            
+        else:
             print("Automatic file fitting disabled")
             self.my_observer.stop()
             self.my_observer.join()
@@ -525,7 +563,7 @@ class DataFileHandling(tk.Frame):
 
             #Update the calibration temperature values
             left_calibration_temperature = float(self.calibration_files.set_left_temperature.get("1.0",tk.END))
-            right_calibration_temperature = float(self.calibration_files.set_left_temperature.get("1.0",tk.END))
+            right_calibration_temperature = float(self.calibration_files.set_right_temperature.get("1.0",tk.END))
 
             #Update the values in the plots class
             self.plots.left_calibration_temperature = left_calibration_temperature
