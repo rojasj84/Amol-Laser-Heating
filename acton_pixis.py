@@ -69,10 +69,13 @@ class CalibrationFileSelection(tk.Frame):
 
         self.set_left_temperature.insert("end-1c", default_calibration_temperature)
 
+        self.left_status_label = tk.Label(self, text="", font=('Helvetica', 9, 'bold'), background=theme.PANEL_BG, borderwidth=2, relief="groove")
+        self.left_status_label.place(x=10, y=128, width=300, height=22)
+
         #Right Side Calibration
         
         load_right_file = tk.Button(self, text="Select Right Calibration File", command=lambda: self.calibration_file_open_dialog(2), font=('Helvetica', 10))
-        load_right_file.place(x = 10, y=150, width = 300, height=25)
+        load_right_file.place(x = 10, y=155, width = 300, height=25)
 
         self.right_file_location = tk.Text(self, bg = theme.TEXT_BG, font=('Helvetica', 10))#, relief=tk.FLAT)
         self.right_file_location.place(x = 10, y=185, width = 300, height=50) 
@@ -88,25 +91,53 @@ class CalibrationFileSelection(tk.Frame):
         set_right_temperature_label.place(x=10, y=240, width = 200, height=25)
 
         self.set_right_temperature.insert("end-1c", default_calibration_temperature)
+
+        # Calibration status indicators
+        self.right_status_label = tk.Label(self, text="", font=('Helvetica', 9, 'bold'), background=theme.PANEL_BG, borderwidth=2, relief="groove")
+        self.right_status_label.place(x=10, y=270, width=300, height=22)
     
+
+    def update_status(self, left_exists, right_exists):
+        if left_exists:
+            self.left_status_label.config(text="Left Calib: OK", fg="#4CAF50")
+        else:
+            self.left_status_label.config(text="Left state has no Calibration File", fg="#FF5252")
+
+        if right_exists:
+            self.right_status_label.config(text="Right Calib: OK", fg="#4CAF50")
+        else:
+            self.right_status_label.config(text="Right state has no Calibration File", fg="#FF5252")
+
+    def has_valid_calibration(self):
+        left_path_str = self.left_file_location.get("1.0", tk.END).strip().replace("\n", "")
+        right_path_str = self.right_file_location.get("1.0", tk.END).strip().replace("\n", "")
+        return Path(left_path_str).is_file() and Path(right_path_str).is_file()
+
+    def update_left_calibration_file(self, file_path):
+        file_path = Path(file_path).absolute()
+        self.left_file_location.config(state="normal")
+        self.left_file_location.delete("1.0", tk.END)
+        self.left_file_location.insert(tk.END, str(file_path))
+        self.left_file_location.config(state="disabled")
+
+    def update_right_calibration_file(self, file_path):
+        file_path = Path(file_path).absolute()
+        self.right_file_location.config(state="normal")
+        self.right_file_location.delete("1.0", tk.END)
+        self.right_file_location.insert(tk.END, str(file_path))
+        self.right_file_location.config(state="disabled")
 
     def calibration_file_open_dialog(self, file_location_number):
         #Differentiates between the light field spectra and the t-rax folder
         open_file_path = filedialog.askopenfilename()
-        if file_location_number == 1:
-            #print(open_file_name)
-            self.left_file_location.config(state="normal")
-            self.left_file_location.delete("1.0",tk.END)
-            self.left_file_location.insert(tk.END, open_file_path)
-            self.left_file_location.config(state="disabled")
-        elif file_location_number == 2:
-            self.right_file_location.config(state="normal")
-            self.right_file_location.delete("1.0",tk.END)
-            self.right_file_location.insert(tk.END, open_file_path)
-            self.right_file_location.config(state="disabled")        
+        if open_file_path:
+            if file_location_number == 1:
+                self.update_left_calibration_file(open_file_path)
+            elif file_location_number == 2:
+                self.update_right_calibration_file(open_file_path)        
     
 class TransmissionFilterSelection(tk.Frame):
-    def __init__(self, container, x_position, y_position, left_denkovi_com_port, right_denkovi_com_port):
+    def __init__(self, container, x_position, y_position, left_denkovi_com_port, right_denkovi_com_port, calibration_file_select=None):
         #tk.Frame.__init__(self, container)
         super().__init__(container)
 
@@ -126,6 +157,7 @@ class TransmissionFilterSelection(tk.Frame):
 
         self.left_denkovi_com_port = left_denkovi_com_port
         self.right_denkovi_com_port = right_denkovi_com_port
+        self.calibration_file_select = calibration_file_select
 
 
         # Filter Determination Raio Buttons for the Left Side
@@ -220,6 +252,46 @@ class TransmissionFilterSelection(tk.Frame):
 
         self.UpdateFestoStates()
 
+    def resolve_calibration_file_path(self, calib_name):
+        if not calib_name:
+            return None
+        base_dir = Path("TemperatureFit")
+        target_name = f"{calib_name}.spe" if not str(calib_name).endswith(".spe") else str(calib_name)
+        
+        # 1. Exact glob match anywhere under TemperatureFit
+        matches = list(base_dir.glob(f"**/{target_name}"))
+        if matches:
+            return matches[0].absolute()
+        
+        # 2. Handle known filename variations on disk (T7050 vs T70T50, T70T10 vs T7010)
+        variations = []
+        if "T7050" in target_name:
+            variations.append(target_name.replace("T7050", "T70T50"))
+        if "T70T10" in target_name:
+            variations.append(target_name.replace("T70T10", "T7010"))
+        
+        for var in variations:
+            m = list(base_dir.glob(f"**/{var}"))
+            if m:
+                return m[0].absolute()
+
+        # 3. Check for exposure suffix variants (e.g. woI -> woI_300ms, woI_200ms)
+        stem = target_name[:-4] if target_name.endswith(".spe") else target_name
+        woi_matches = list(base_dir.glob(f"**/{stem}*.spe"))
+        if woi_matches:
+            return woi_matches[0].absolute()
+
+        # 4. If file is missing on disk, construct the expected calibration subfolder path
+        side = "L" if stem.startswith("L_") else ("R" if stem.startswith("R_") else "")
+        mag = "15x" if "15x" in stem else ("20x" if "20x" in stem else "")
+        if mag and side:
+            mag_folder = f"{mag}Mag"
+            side_folder = f"{mag}{side}"
+            expected = base_dir / "T_Calib_20250314" / mag_folder / side_folder / target_name
+            return expected.absolute()
+
+        return (base_dir / target_name).absolute()
+
     def UpdateFestoStates(self):
 
         #obtain the states from the radio buttons in the class and format them properly        
@@ -254,8 +326,31 @@ class TransmissionFilterSelection(tk.Frame):
         left_side_states = np.array(list(left_state_binary_string), dtype=int)
         right_side_states = np.array(list(right_state_binary_string), dtype=int)
         
-        print(self.LeftCalibrationChecking.compare_rows_return_calibration_file(left_side_states))
-        print(self.RightCalibrationChecking.compare_rows_return_calibration_file(right_side_states))
+        left_calib_result = self.LeftCalibrationChecking.compare_rows_return_calibration_file(left_side_states)
+        right_calib_result = self.RightCalibrationChecking.compare_rows_return_calibration_file(right_side_states)
+
+        print(left_calib_result)
+        print(right_calib_result)
+
+        left_exists = False
+        right_exists = False
+
+        if left_calib_result is not None:
+            left_filename = left_calib_result[0] if isinstance(left_calib_result, (list, np.ndarray)) else str(left_calib_result)
+            left_path = self.resolve_calibration_file_path(left_filename)
+            left_exists = left_path.is_file() if left_path else False
+            if left_path and self.calibration_file_select:
+                self.calibration_file_select.update_left_calibration_file(left_path)
+
+        if right_calib_result is not None:
+            right_filename = right_calib_result[0] if isinstance(right_calib_result, (list, np.ndarray)) else str(right_calib_result)
+            right_path = self.resolve_calibration_file_path(right_filename)
+            right_exists = right_path.is_file() if right_path else False
+            if right_path and self.calibration_file_select:
+                self.calibration_file_select.update_right_calibration_file(right_path)
+
+        if self.calibration_file_select:
+            self.calibration_file_select.update_status(left_exists, right_exists)
 
 
 class PlotGraphs(tk.Frame):
@@ -482,6 +577,10 @@ class DataFileHandling(tk.Frame):
     # Runs on the main thread (via self.after below), so it's safe to update the plots here.
     def process_new_spe_file(self, file_path):
         try:
+            if not self.calibration_files.has_valid_calibration():
+                print(f"Skipping fit for {file_path}: This state doesn't have a Calibration File.")
+                return True
+
             #Update the calibration files and temperatures
             left_calibration_file_location = r"{}".format(self.calibration_files.left_file_location.get("1.0",tk.END))
             left_calibration_file_location = left_calibration_file_location.replace("\n", "")
@@ -555,9 +654,14 @@ class DataFileHandling(tk.Frame):
         #Differentiates between the light field spectra and the t-rax folder
         if file_location_number == 1:
             self.open_file_path = filedialog.askopenfilename(filetypes=[("Lightfield spectrum", "*.spe"), ("All files", "*.*")])
-            #print(open_file_name)
+            if not self.open_file_path:
+                return
             self.selected_lightfield_spectra.delete("1.0",tk.END)
             self.selected_lightfield_spectra.insert(tk.END, self.open_file_path)
+
+            if not self.calibration_files.has_valid_calibration():
+                print("Cannot fit data: This state doesn't have a Calibration File.")
+                return
 
             #print(r'{}'.format(self.open_file_path))
             #self.plots.update_test()
@@ -607,12 +711,11 @@ class InitiateActonTfit(tk.Frame):
 
 
         self.Logo = LogoDisplay(self, 10,10)
-        # CalibrationFile = CalibrationFileSelection(10, 360)
-        self.TransmissionFilter = TransmissionFilterSelection (self, 340, 60, left_denkovi_com_port, right_denkovi_com_port)
+        self.CalibrationFileSelect = CalibrationFileSelection(self, 10, 90, self.left_calibration_file, self.right_calibration_file, self.autofit_folderpath)
+        self.TransmissionFilter = TransmissionFilterSelection (self, 340, 60, left_denkovi_com_port, right_denkovi_com_port, calibration_file_select=self.CalibrationFileSelect)
         self.TransmissionFilter.place(x = 340, y = 60)
 
         self.Temperature_graphs = PlotGraphs(self, 340, 320, self.left_calibration_file, self.right_calibration_file, default_fit_file)
-        self.CalibrationFileSelect = CalibrationFileSelection(self, 10, 90, self.left_calibration_file, self.right_calibration_file, self.autofit_folderpath)
         self.DataFileSelect = DataFileHandling(self, self.Temperature_graphs, self.CalibrationFileSelect, 10, 90, self.autofit_folderpath)
         
         self.DataFileSelect_placedata = self.DataFileSelect.place_info()
