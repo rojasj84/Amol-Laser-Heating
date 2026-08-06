@@ -75,9 +75,8 @@ def scale_images(file_loc,scale):
             laser2_speed_ind.configure(image=speed_img)
             laser2_speed_ind.image = speed_img
 
-def initiate_remote_control():
-    x = 0
-    RemoteControlWindow()
+def initiate_remote_control(laser1_motors, laser2_motors):
+    RemoteControlWindow(laser1_motors, laser2_motors)
 
 #***** Classes for building GUI *****
 class AgilisControlPanel(tk.Frame):
@@ -238,8 +237,11 @@ class AgilisControlPanel(tk.Frame):
             self.speed_display.place(relx=0.5,rely=0.5, anchor="center")
 
 class RemoteControlWindow(tk.Toplevel):
-    def __init__(self):
+    def __init__(self, laser1_motors, laser2_motors):
         super().__init__()
+
+        self.laser1_motors = laser1_motors
+        self.laser2_motors = laser2_motors
 
         self.title("Stream Deck Remote Control")
         self.geometry("400x100")
@@ -262,12 +264,15 @@ class RemoteControlWindow(tk.Toplevel):
 
     # Hotkey setting for the release of a hotkey
     def keyup(self, e):
+        laser1_PiezoMotors = self.laser1_motors
+        laser2_PiezoMotors = self.laser2_motors
+
         #Laser 1 Hotkeys
         #Activating the laser axis translations
         if e.char == "a":
             laser1_PiezoMotors.Laser_Jog_Left.Stop_Piezo_Travel(laser1_PiezoMotors.Laser_Jog_Left.channel, laser1_PiezoMotors.Laser_Jog_Left.axis)
         if e.char == "d":
-            laser1_PiezoMotors.Laser_Jog_Left.Stop_Piezo_Travel(laser1_PiezoMotors.Laser_Jog_Right.channel, laser1_PiezoMotors.Laser_Jog_Right.axis)
+            laser1_PiezoMotors.Laser_Jog_Right.Stop_Piezo_Travel(laser1_PiezoMotors.Laser_Jog_Right.channel, laser1_PiezoMotors.Laser_Jog_Right.axis)
         if e.char == "w":
             laser1_PiezoMotors.Laser_Jog_Up.Stop_Piezo_Travel(laser1_PiezoMotors.Laser_Jog_Up.channel, laser1_PiezoMotors.Laser_Jog_Up.axis)
         if e.char == "s":
@@ -277,7 +282,7 @@ class RemoteControlWindow(tk.Toplevel):
         if e.char == "e":
             laser1_PiezoMotors.laser_right_focus.Stop_Piezo_Travel(laser1_PiezoMotors.laser_right_focus.channel, laser1_PiezoMotors.laser_right_focus.axis)
         if e.char == "3":
-            #place holder for later, to fire guide laser            
+            #place holder for later, to fire guide laser
             do_nothing()
 
         #Laser 2 Hotkeys
@@ -285,7 +290,7 @@ class RemoteControlWindow(tk.Toplevel):
         if e.char == "j":
             laser2_PiezoMotors.Laser_Jog_Left.Stop_Piezo_Travel(laser2_PiezoMotors.Laser_Jog_Left.channel, laser2_PiezoMotors.Laser_Jog_Left.axis)
         if e.char == "l":
-            laser2_PiezoMotors.Laser_Jog_Left.Stop_Piezo_Travel(laser2_PiezoMotors.Laser_Jog_Right.channel, laser2_PiezoMotors.Laser_Jog_Right.axis)
+            laser2_PiezoMotors.Laser_Jog_Right.Stop_Piezo_Travel(laser2_PiezoMotors.Laser_Jog_Right.channel, laser2_PiezoMotors.Laser_Jog_Right.axis)
         if e.char == "i":
             laser2_PiezoMotors.Laser_Jog_Up.Stop_Piezo_Travel(laser2_PiezoMotors.Laser_Jog_Up.channel, laser2_PiezoMotors.Laser_Jog_Up.axis)
         if e.char == "k":
@@ -295,13 +300,16 @@ class RemoteControlWindow(tk.Toplevel):
         if e.char == "o":
             laser2_PiezoMotors.laser_right_focus.Stop_Piezo_Travel(laser2_PiezoMotors.laser_right_focus.channel, laser2_PiezoMotors.laser_right_focus.axis)
         if e.char == "0":
-            #place holder for later, to fire guide laser            
+            #place holder for later, to fire guide laser
             do_nothing()
 
         self.pressedkey = 0
 
     # Hotkey setting for holding down a hotkey
     def keydown(self, e):
+        laser1_PiezoMotors = self.laser1_motors
+        laser2_PiezoMotors = self.laser2_motors
+
         if e.char != self.pressedkey:
             self.pressedkey = e.char
             #Laser 1 Hotkeys
@@ -310,7 +318,7 @@ class RemoteControlWindow(tk.Toplevel):
                 #print("This is a test", self.pressedkey)
                 laser1_PiezoMotors.Laser_Jog_Left.Start_Piezo_Travel(laser1_PiezoMotors.Laser_Jog_Left.channel, laser1_PiezoMotors.Laser_Jog_Left.axis, laser1_PiezoMotors.Laser_Jog_Left.direction*laser1_PiezoMotors.jog_speed_local)
             if e.char == "d":
-                laser1_PiezoMotors.Laser_Jog_Left.Start_Piezo_Travel(laser1_PiezoMotors.Laser_Jog_Right.channel, laser1_PiezoMotors.Laser_Jog_Right.axis, laser1_PiezoMotors.Laser_Jog_Right.direction*laser1_PiezoMotors.jog_speed_local)
+                laser1_PiezoMotors.Laser_Jog_Right.Start_Piezo_Travel(laser1_PiezoMotors.Laser_Jog_Right.channel, laser1_PiezoMotors.Laser_Jog_Right.axis, laser1_PiezoMotors.Laser_Jog_Right.direction*laser1_PiezoMotors.jog_speed_local)
             if e.char == "w":
                 laser1_PiezoMotors.Laser_Jog_Up.Start_Piezo_Travel(laser1_PiezoMotors.Laser_Jog_Up.channel, laser1_PiezoMotors.Laser_Jog_Up.axis, laser1_PiezoMotors.Laser_Jog_Up.direction*laser1_PiezoMotors.jog_speed_local)
             if e.char == "s":
@@ -320,7 +328,7 @@ class RemoteControlWindow(tk.Toplevel):
             if e.char == "e":
                 laser1_PiezoMotors.laser_right_focus.Start_Piezo_Travel(laser1_PiezoMotors.laser_right_focus.channel, laser1_PiezoMotors.laser_right_focus.axis, laser1_PiezoMotors.laser_right_focus.direction*laser1_PiezoMotors.jog_speed_local)
             if e.char == "3":
-                #place holder for later, to fire guide laser            
+                #place holder for later, to fire guide laser
                 do_nothing()
 
             #Laser 2 Hotkeys
@@ -329,7 +337,7 @@ class RemoteControlWindow(tk.Toplevel):
                 #print("This is a test", self.pressedkey)
                 laser2_PiezoMotors.Laser_Jog_Left.Start_Piezo_Travel(laser2_PiezoMotors.Laser_Jog_Left.channel, laser2_PiezoMotors.Laser_Jog_Left.axis, laser2_PiezoMotors.Laser_Jog_Left.direction*laser2_PiezoMotors.jog_speed_local)
             if e.char == "l":
-                laser2_PiezoMotors.Laser_Jog_Left.Start_Piezo_Travel(laser2_PiezoMotors.Laser_Jog_Right.channel, laser2_PiezoMotors.Laser_Jog_Right.axis, laser2_PiezoMotors.Laser_Jog_Right.direction*laser2_PiezoMotors.jog_speed_local)
+                laser2_PiezoMotors.Laser_Jog_Right.Start_Piezo_Travel(laser2_PiezoMotors.Laser_Jog_Right.channel, laser2_PiezoMotors.Laser_Jog_Right.axis, laser2_PiezoMotors.Laser_Jog_Right.direction*laser2_PiezoMotors.jog_speed_local)
             if e.char == "i":
                 laser2_PiezoMotors.Laser_Jog_Up.Start_Piezo_Travel(laser2_PiezoMotors.Laser_Jog_Up.channel, laser2_PiezoMotors.Laser_Jog_Up.axis, laser2_PiezoMotors.Laser_Jog_Up.direction*laser2_PiezoMotors.jog_speed_local)
             if e.char == "k":
@@ -339,10 +347,10 @@ class RemoteControlWindow(tk.Toplevel):
             if e.char == "o":
                 laser2_PiezoMotors.laser_right_focus.Start_Piezo_Travel(laser2_PiezoMotors.laser_right_focus.channel, laser2_PiezoMotors.laser_right_focus.axis, laser2_PiezoMotors.laser_right_focus.direction*laser2_PiezoMotors.jog_speed_local)
             if e.char == "0":
-                #place holder for later, to fire guide laser            
+                #place holder for later, to fire guide laser
                 do_nothing()
-            
-            
+
+
             # Changing the speed settings for lasers 1 and 2
             if e.char == "1":
                 laser1_PiezoMotors.change_jog_speed_local("-")
@@ -351,7 +359,7 @@ class RemoteControlWindow(tk.Toplevel):
             if e.char == "8":
                 laser2_PiezoMotors.change_jog_speed_local("-")
             if e.char == "9":
-                laser2_PiezoMotors.change_jog_speed_local("+")                        
+                laser2_PiezoMotors.change_jog_speed_local("+")
        
 class InitiatePiezoMotorControls(tk.Frame):
     #def __init__(self, x_position, y_position):
@@ -383,8 +391,8 @@ class InitiatePiezoMotorControls(tk.Frame):
         self.laser1_PiezoMotors = AgilisControlPanel(self, laser1_xy_channel, laser_focus_channel, 1, 20, 10, "left", self.agilis_comport)
         self.laser2_PiezoMotors = AgilisControlPanel(self, laser2_xy_channel, laser_focus_channel, 2, 260, 10, "right", self.agilis_comport)
 
-        RemoteControlButton = tk.Button(self, text="Remote Control", command=initiate_remote_control)
-        RemoteControlButton.place(x=150,y=520, height = 30, width = 200)        
+        RemoteControlButton = tk.Button(self, text="Remote Control", command=lambda: initiate_remote_control(self.laser1_PiezoMotors, self.laser2_PiezoMotors))
+        RemoteControlButton.place(x=150,y=520, height = 30, width = 200)
              
        
 if __name__ == "__main__":
@@ -417,7 +425,7 @@ if __name__ == "__main__":
     laser1_PiezoMotors = AgilisControlPanel(window, laser1_xy_channel, laser_focus_channel, 1, 20, 10, "left")
     laser2_PiezoMotors = AgilisControlPanel(window, laser2_xy_channel, laser_focus_channel, 2, 260, 10, "right")
 
-    RemoteControlButton = tk.Button(window, text="Remote Control", command=initiate_remote_control)
+    RemoteControlButton = tk.Button(window, text="Remote Control", command=lambda: initiate_remote_control(laser1_PiezoMotors, laser2_PiezoMotors))
     RemoteControlButton.place(x=150,y=530, height = 30, width = 200)
 
     window.mainloop()
