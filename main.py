@@ -10,6 +10,7 @@ from acton_pixis import *
 from piezo_motor_control import *
 from laser_communication import *
 from festo_control import *
+from comms_monitor import CommsMonitorPanel
 
 win_color = "light gray"
 
@@ -44,6 +45,13 @@ class Festo_Controls(tk.Toplevel):
         self.geometry("280x445")
         self.FestoControlClass = FestoControlWindow(self, left_denkovi_com_port, right_denkovi_com_port)
 
+class CommsMonitor_Controls(tk.Toplevel):
+    def __init__(self):
+        tk.Toplevel.__init__(self)
+        self.title("Communications Monitor")
+        self.geometry("710x420")
+        self.CommsMonitorPanel = CommsMonitorPanel(self)
+
 class ComPort_Controls(tk.Toplevel):
     def __init__(self):
         tk.Toplevel.__init__(self)
@@ -62,6 +70,10 @@ class ComPort_Controls(tk.Toplevel):
         self.left_relays_com_port.set(left_denkovi_com_port)
 
         options = self.get_com_ports()
+        if not options:
+            # No serial devices detected (e.g. running away from the rig with nothing
+            # plugged in) - fall back to a placeholder so the dropdowns can still build.
+            options = ["No COM ports detected"]
 
         agilis_label = tk.Label(self, text = "AGILIS Piezo Motors", font=("Arial", 10))
         agilis_label.place(x = 10, y = 20)
@@ -137,6 +149,8 @@ def open_window(window_value, window_in_question):
             globals()['LaserControlWindow'] = Laser_Controls()
         elif window_value == 4:
             globals()['ComPortControlWindow'] = ComPort_Controls()
+        elif window_value == 5:
+            globals()['CommsMonitorWindow'] = CommsMonitor_Controls()
         else:
             do_nothing()
     
@@ -159,11 +173,13 @@ if __name__ == "__main__":
     PiezoControlWindow = Piezo_Controls()
     FestControlWindow = Festo_Controls()
     ComPortControlWindow = ComPort_Controls()
+    CommsMonitorWindow = CommsMonitor_Controls()
 
     LaserControlWindow.destroy() #Removing festo control from display since the user doesn't normally need to access directly the Festo States
     FestControlWindow.destroy() #Removing festo control from display since the user doesn't normally need to access directly the Festo States
     PiezoControlWindow.destroy() #Removing festo control from display since the user doesn't normally need to access directly the Festo States
-    ComPortControlWindow.destroy() 
+    ComPortControlWindow.destroy()
+    CommsMonitorWindow.destroy()
     
     #Creating a top menu
     menu_bar = tk.Menu(window)
@@ -182,6 +198,7 @@ if __name__ == "__main__":
     edit_menu = tk.Menu(menu_bar, tearoff=0)
     edit_menu.add_command(label="COM Ports", command=lambda: open_window(4, ComPortControlWindow))
     edit_menu.add_command(label="Laser IPs", command=do_nothing)
+    edit_menu.add_command(label="Communications Monitor", command=lambda: open_window(5, CommsMonitorWindow))
     menu_bar.add_cascade(label="Communications", menu=edit_menu)
 
     # Create a Windows menu

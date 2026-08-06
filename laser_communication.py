@@ -3,44 +3,54 @@ import tkinter as tk
 import time
 import serial
 
+import comms_monitor
+
 class LaserCommunication(tk.Frame):
-    
+
     def laser_send_command(self, laser_ip, command_string):
         # laser_ip = '192.168.0.100'
         TCP_PORT = 10001
         BUFFER_SIZE = 1024
+        CONNECT_TIMEOUT_SECONDS = 2
 
         message = command_string + "\r"
 
-        laser_ip_connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        laser_ip_connection.connect((laser_ip, TCP_PORT))
-        laser_ip_connection.send(message.encode())
-        # print("1")
-        laser_response = laser_ip_connection.recv(1024).decode()
-        # print("2")
-        laser_ip_connection.close()
+        try:
+            laser_ip_connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            laser_ip_connection.settimeout(CONNECT_TIMEOUT_SECONDS)
+            laser_ip_connection.connect((laser_ip, TCP_PORT))
+            laser_ip_connection.send(message.encode())
+            laser_response = laser_ip_connection.recv(1024).decode()
+            laser_ip_connection.close()
 
-        print(laser_response)
-        #laser_output_label_display.configure(text=laser_response)
+            comms_monitor.log(f"Laser ({laser_ip})", command_string)
+            print(laser_response)
+            #laser_output_label_display.configure(text=laser_response)
+        except OSError as connection_error:
+            comms_monitor.log(f"Laser ({laser_ip})", f"{command_string}  ({connection_error})", ok=False)
 
     def laser_send_command_RS232(self, com_port, command_string):
-        # serial port settings
-        ser = serial.Serial(com_port, baudrate=57600, timeout=1, parity=serial.PARITY_NONE, bytesize=serial.EIGHTBITS, stopbits=serial.STOPBITS_ONE)
-
         # add a carriage return to the command
         message = command_string + "\r"
 
-        # Send the command to the laser
-        ser.write(message.encode())
-        
-        # Read the message back from the laser
-        laser_response = ser.read()
+        try:
+            # serial port settings
+            ser = serial.Serial(com_port, baudrate=57600, timeout=1, parity=serial.PARITY_NONE, bytesize=serial.EIGHTBITS, stopbits=serial.STOPBITS_ONE)
 
-        #Close the serial connection
-        ser.close()
+            # Send the command to the laser
+            ser.write(message.encode())
 
-        print(laser_response)
-        #laser_output_label_display.configure(text=laser_response)
+            # Read the message back from the laser
+            laser_response = ser.read()
+
+            #Close the serial connection
+            ser.close()
+
+            comms_monitor.log(f"Laser ({com_port})", command_string)
+            print(laser_response)
+            #laser_output_label_display.configure(text=laser_response)
+        except serial.SerialException as connection_error:
+            comms_monitor.log(f"Laser ({com_port})", f"{command_string}  ({connection_error})", ok=False)
 
     def timed_laser_fire(self):
         # test

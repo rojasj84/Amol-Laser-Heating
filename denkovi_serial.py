@@ -1,5 +1,7 @@
 import serial
 
+import comms_monitor
+
 # Function for sending 2 bytes to alter the state of multiple relays at once
 def send_relay_bytes(port, byte1, byte2):
     # sudo chmod a+rw /dev/ttyUSB0
@@ -7,37 +9,50 @@ def send_relay_bytes(port, byte1, byte2):
 
     # Set connection information
     # port = '/dev/ttyUSB0'
-    ser = serial.Serial(port,
-                        9600,
-                        bytesize=serial.EIGHTBITS,
-                        parity=serial.PARITY_NONE,
-                        stopbits=serial.STOPBITS_ONE,
-                        timeout=1)
-    # assuming default settings
     packet = bytearray(2)
     packet[0] = byte1
     packet[1] = byte2
-    print(packet)
-    ser.write(b'x' + packet + b'//')
-    ser.close()
+    message = b'x' + packet + b'//'
+
+    try:
+        ser = serial.Serial(port,
+                            9600,
+                            bytesize=serial.EIGHTBITS,
+                            parity=serial.PARITY_NONE,
+                            stopbits=serial.STOPBITS_ONE,
+                            timeout=1)
+        # assuming default settings
+        ser.write(message)
+        ser.close()
+        comms_monitor.log(f"Denkovi relay board ({port})", message)
+    except serial.SerialException as connection_error:
+        comms_monitor.log(f"Denkovi relay board ({port})", f"{message}  ({connection_error})", ok=False)
 
 # Function to read in the two bytes for the state of the 16 relays
 # 'ask//' is sent and two bytes are sent back
 def read_denkovi_status(port):
-    ser = serial.Serial(port,
-                        9600,
-                        bytesize=serial.EIGHTBITS,
-                        parity=serial.PARITY_NONE,
-                        stopbits=serial.STOPBITS_ONE,
-                        timeout=1)
+    try:
+        ser = serial.Serial(port,
+                            9600,
+                            bytesize=serial.EIGHTBITS,
+                            parity=serial.PARITY_NONE,
+                            stopbits=serial.STOPBITS_ONE,
+                            timeout=1)
 
-    ser.write(b'ask//')
-    # time.sleep(.05)
+        ser.write(b'ask//')
+        comms_monitor.log(f"Denkovi relay board ({port})", b'ask//')
 
-    low_byte = ser.read(size=1)
-    high_byte = ser.read(size=1)
+        low_byte = ser.read(size=1)
+        high_byte = ser.read(size=1)
 
-    ser.close()
+        ser.close()
+    except serial.SerialException as connection_error:
+        comms_monitor.log(f"Denkovi relay board ({port})", f"ask//  ({connection_error})", ok=False)
+        return [0] * 16
+
+    if not low_byte or not high_byte:
+        comms_monitor.log(f"Denkovi relay board ({port})", "no response received", ok=False)
+        return [0] * 16
 
     low_byte_relay_states = [0, 0, 0, 0, 0, 0, 0, 0]
     high_byte_relay_states = [0, 0, 0, 0, 0, 0, 0, 0]

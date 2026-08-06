@@ -2,6 +2,8 @@ import serial
 import time
 # Library with functions to talk with the agilis piezo motion controller
 
+import comms_monitor
+
 #Set comport for agilis
 COMPORT = 'COM10'
 
@@ -15,15 +17,19 @@ def piezo_move_relative(comport,channel,axis,direction,steps):
     else:
         command_string = command_string + str(steps)
 
-    ser = serial.Serial(comport,
-                        921600,
-                        bytesize=serial.EIGHTBITS,
-                        parity=serial.PARITY_NONE,
-                        stopbits=serial.STOPBITS_ONE,
-                        timeout=1)
-    ser.write( b'CC' + str(channel).encode('ascii') +  b'\r\n')
-    ser.write( command_string.encode('ascii') +  b'\r\n')
-    ser.close()
+    try:
+        ser = serial.Serial(comport,
+                            921600,
+                            bytesize=serial.EIGHTBITS,
+                            parity=serial.PARITY_NONE,
+                            stopbits=serial.STOPBITS_ONE,
+                            timeout=1)
+        ser.write( b'CC' + str(channel).encode('ascii') +  b'\r\n')
+        ser.write( command_string.encode('ascii') +  b'\r\n')
+        ser.close()
+        comms_monitor.log(f"AGILIS piezo controller ({comport})", f"CC{channel} / {command_string}")
+    except serial.SerialException as connection_error:
+        comms_monitor.log(f"AGILIS piezo controller ({comport})", f"CC{channel} / {command_string}  ({connection_error})", ok=False)
 
 # Newport AGILIS command "JA" (Jog At speed): move continuously until stopped
 def piezo_jog_at_speed(comport,channel,axis,speed):
@@ -31,40 +37,48 @@ def piezo_jog_at_speed(comport,channel,axis,speed):
     command_string = str(axis) + "JA"
     command_string = command_string + str(speed)
     #print(command_string)
-    ser = serial.Serial(comport,
-                        921600,
-                        bytesize=serial.EIGHTBITS,
-                        parity=serial.PARITY_NONE,
-                        stopbits=serial.STOPBITS_ONE,
-                        timeout=1)
+    try:
+        ser = serial.Serial(comport,
+                            921600,
+                            bytesize=serial.EIGHTBITS,
+                            parity=serial.PARITY_NONE,
+                            stopbits=serial.STOPBITS_ONE,
+                            timeout=1)
 
-    # Perform check for active serial, wait while active
-    time.sleep(.01)
-    ser.write( b'CC' + str(channel).encode('ascii') +  b'\r\n')
-    time.sleep(.01)
-    ser.write( command_string.encode('ascii') +  b'\r\n')
+        # Perform check for active serial, wait while active
+        time.sleep(.01)
+        ser.write( b'CC' + str(channel).encode('ascii') +  b'\r\n')
+        time.sleep(.01)
+        ser.write( command_string.encode('ascii') +  b'\r\n')
 
-    ser.close() # Tells Axis to Jog Move at a certain speed
+        ser.close() # Tells Axis to Jog Move at a certain speed
+        comms_monitor.log(f"AGILIS piezo controller ({comport})", f"CC{channel} / {command_string}")
+    except serial.SerialException as connection_error:
+        comms_monitor.log(f"AGILIS piezo controller ({comport})", f"CC{channel} / {command_string}  ({connection_error})", ok=False)
 
 # Newport AGILIS command "ST" (Stop): halt motion on the given axis
 def piezo_stop(comport,channel,axis):
 
     command_string = str(axis) + "ST"
     #print(command_string)
-    ser = serial.Serial(comport,
-                        921600,
-                        bytesize=serial.EIGHTBITS,
-                        parity=serial.PARITY_NONE,
-                        stopbits=serial.STOPBITS_ONE,
-                        timeout=1)
+    try:
+        ser = serial.Serial(comport,
+                            921600,
+                            bytesize=serial.EIGHTBITS,
+                            parity=serial.PARITY_NONE,
+                            stopbits=serial.STOPBITS_ONE,
+                            timeout=1)
 
-    # Perform check for active serial, wait while active
-    time.sleep(.01)
-    ser.write( b'CC' + str(channel).encode('ascii') +  b'\r\n')
-    time.sleep(.01)
-    ser.write( command_string.encode('ascii') +  b'\r\n')
+        # Perform check for active serial, wait while active
+        time.sleep(.01)
+        ser.write( b'CC' + str(channel).encode('ascii') +  b'\r\n')
+        time.sleep(.01)
+        ser.write( command_string.encode('ascii') +  b'\r\n')
 
-    ser.close() # Tells Axis to Stop
+        ser.close() # Tells Axis to Stop
+        comms_monitor.log(f"AGILIS piezo controller ({comport})", f"CC{channel} / {command_string}")
+    except serial.SerialException as connection_error:
+        comms_monitor.log(f"AGILIS piezo controller ({comport})", f"CC{channel} / {command_string}  ({connection_error})", ok=False)
 
 # Newport AGILIS command "MR" (Set Remote Mode): required before the controller
 # will accept computer commands instead of front-panel control
@@ -72,13 +86,17 @@ def piezo_set_remote_mode():
 
     command_string = "MR"
     #print(command_string)
-    ser = serial.Serial(COMPORT,
-                        921600,
-                        bytesize=serial.EIGHTBITS,
-                        parity=serial.PARITY_NONE,
-                        stopbits=serial.STOPBITS_ONE,
-                        timeout=1)
+    try:
+        ser = serial.Serial(COMPORT,
+                            921600,
+                            bytesize=serial.EIGHTBITS,
+                            parity=serial.PARITY_NONE,
+                            stopbits=serial.STOPBITS_ONE,
+                            timeout=1)
 
-    ser.write( command_string.encode('ascii') +  b'\r\n')
+        ser.write( command_string.encode('ascii') +  b'\r\n')
 
-    ser.close() # Tells Axis to Stop
+        ser.close() # Tells Axis to Stop
+        comms_monitor.log(f"AGILIS piezo controller ({COMPORT})", command_string)
+    except serial.SerialException as connection_error:
+        comms_monitor.log(f"AGILIS piezo controller ({COMPORT})", f"{command_string}  ({connection_error})", ok=False)
