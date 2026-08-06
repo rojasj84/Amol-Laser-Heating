@@ -5,8 +5,9 @@ from PIL import ImageTk, Image
 # Importing local libraries
 from agilis_control import *
 from denkovi_serial import *
+import theme
 
-win_color = "light gray"
+win_color = theme.PANEL_BG
 
 #***** Define Functions *****
 def do_nothing():
@@ -93,7 +94,7 @@ class AgilisControlPanel(tk.Frame):
         self.side = side
 
         # show the frame on the container
-        self.config(background=win_color, highlightbackground="black", highlightthickness=1, relief="raised")
+        self.config(background=win_color, highlightbackground=theme.BORDER, highlightthickness=1, relief="raised")
         self.place(x=x_location,y=y_location,width = frame_width,height = frame_height)
 
         #Populate labels    
@@ -399,7 +400,7 @@ if __name__ == "__main__":
 
     #***** Global variables *****
     refresh_time = 100  # time sensors refresh
-    win_color = 'light grey'
+    win_color = theme.PANEL_BG
 
     piezo_set_remote_mode()
 

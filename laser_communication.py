@@ -4,6 +4,7 @@ import time
 import serial
 
 import comms_monitor
+import theme
 
 class LaserCommunication(tk.Frame):
 
@@ -75,7 +76,7 @@ class LaserCommunication(tk.Frame):
 
         #Frame visual configuration
         self.configure(width=225,height=430)
-        self.config(background="light gray", highlightbackground="black", highlightthickness=1, relief="raised")
+        self.config(background=theme.PANEL_BG, highlightbackground=theme.BORDER, highlightthickness=1, relief="raised")
         
         #Frame position information
         self.place(x = x_position, y = y_position)

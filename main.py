@@ -11,8 +11,18 @@ from piezo_motor_control import *
 from laser_communication import *
 from festo_control import *
 from comms_monitor import CommsMonitorPanel
+import theme
 
-win_color = "light gray"
+# The Acton/TemperatureFit panel is the main window's content and is deliberately sized
+# for 1280x1000 (see acton_pixis.InitiateActonTfit). MENU_BAR_HEIGHT reserves room above
+# it for the custom (themable) menu bar built in __main__.
+ACTON_PANEL_WIDTH = 1280
+ACTON_PANEL_HEIGHT = 1000
+MENU_BAR_HEIGHT = 32
+MAIN_WINDOW_WIDTH = ACTON_PANEL_WIDTH
+MAIN_WINDOW_HEIGHT = ACTON_PANEL_HEIGHT + MENU_BAR_HEIGHT
+
+win_color = theme.PANEL_BG
 
 #Global variables to store laser IPs and COM Ports for the various systems
 
@@ -29,6 +39,7 @@ class Laser_Controls(tk.Toplevel):
         self.geometry("505x500")
         LaserCommunication(self,left_laser_ip, 20,20)
         LaserCommunication(self,right_laser_ip, 260,20)
+        theme.apply_dark_titlebar(self)
 
 class Piezo_Controls(tk.Toplevel):
     def __init__(self):
@@ -36,7 +47,8 @@ class Piezo_Controls(tk.Toplevel):
         self.title("AGILIS Control Window")
         self.geometry("505x600")
         self.PiezoControlClass = InitiatePiezoMotorControls(self,0,0,agilis_com_port)
-        print(agilis_com_port)          
+        print(agilis_com_port)
+        theme.apply_dark_titlebar(self)
 
 class Festo_Controls(tk.Toplevel):
      def __init__(self):
@@ -44,6 +56,7 @@ class Festo_Controls(tk.Toplevel):
         self.title("Festo Control Window")
         self.geometry("280x445")
         self.FestoControlClass = FestoControlWindow(self, left_denkovi_com_port, right_denkovi_com_port)
+        theme.apply_dark_titlebar(self)
 
 class CommsMonitor_Controls(tk.Toplevel):
     def __init__(self):
@@ -51,6 +64,7 @@ class CommsMonitor_Controls(tk.Toplevel):
         self.title("Communications Monitor")
         self.geometry("710x420")
         self.CommsMonitorPanel = CommsMonitorPanel(self)
+        theme.apply_dark_titlebar(self)
 
 class ComPort_Controls(tk.Toplevel):
     def __init__(self):
@@ -92,6 +106,8 @@ class ComPort_Controls(tk.Toplevel):
 
         update_button = tk.Button(self, text="Update", command=self.update_com_ports)
         update_button.place(x = 75, y = 120, width=200)
+
+        theme.apply_dark_titlebar(self)
 
     def get_com_ports(self):
         ports = [port.device for port in serial.tools.list_ports.comports()]
@@ -162,13 +178,19 @@ if __name__ == "__main__":
     # Begin code with window code
     window = tk.Tk()
     window.title("EPL Laser Heating Control")
-    window.geometry("1280x1010")
+
+    # Apply the dark theme before building any content, so every widget created from
+    # here on (in this window and every Toplevel opened later) picks up the theme.
+    theme.apply_dark_theme(window)
+
+    theme.center_on_primary_monitor(window, MAIN_WINDOW_WIDTH, MAIN_WINDOW_HEIGHT)
+    theme.apply_dark_titlebar(window)
 
     ico = Image.open("images/laser-icon.png")
     photo = ImageTk.PhotoImage(ico)
     window.wm_iconphoto(False, photo)
     
-    ActonControlWindow = ActonPixis = InitiateActonTfit(window, 0,0, left_denkovi_com_port, right_denkovi_com_port)
+    ActonControlWindow = ActonPixis = InitiateActonTfit(window, 0, MENU_BAR_HEIGHT, left_denkovi_com_port, right_denkovi_com_port)
     LaserControlWindow = Laser_Controls()
     PiezoControlWindow = Piezo_Controls()
     FestControlWindow = Festo_Controls()
@@ -181,37 +203,43 @@ if __name__ == "__main__":
     ComPortControlWindow.destroy()
     CommsMonitorWindow.destroy()
     
-    #Creating a top menu
-    menu_bar = tk.Menu(window)
-    file_menu = tk.Menu(menu_bar, tearoff=0)
+    # Creating a top menu. Built from plain Tk widgets (Frame + Menubutton) rather than
+    # the native window menu (.config(menu=...)) - on Windows, the native menu bar is
+    # drawn by the OS itself and ignores Tk's color settings, which left a bright white
+    # strip across the top of an otherwise dark window. Menubuttons are regular themable
+    # Tk widgets, so this one picks up the dark theme like everything else.
+    menu_bar_frame = tk.Frame(window, bg=theme.PANEL_BG, height=MENU_BAR_HEIGHT)
+    menu_bar_frame.place(x=0, y=0, width=MAIN_WINDOW_WIDTH, height=MENU_BAR_HEIGHT)
+
+    def add_menu(label):
+        button = tk.Menubutton(menu_bar_frame, text=label, bg=theme.PANEL_BG, fg=theme.FG,
+                                activebackground=theme.SELECT_BG, activeforeground=theme.FG,
+                                relief="flat", padx=12, pady=6)
+        button.pack(side="left")
+        menu = tk.Menu(button, tearoff=0, bg=theme.PANEL_BG, fg=theme.FG,
+                        activebackground=theme.SELECT_BG, activeforeground=theme.FG)
+        button.configure(menu=menu)
+        return menu
+
+    file_menu = add_menu("Main")
     file_menu.add_command(label="Exit", command=window.quit)
-    menu_bar.add_cascade(label="Main", menu=file_menu)
 
     # Create a Spectrometer menu
-    edit_menu = tk.Menu(menu_bar, tearoff=0)
-    edit_menu.add_command(label="High Temperature", command=do_nothing)
-    edit_menu.add_command(label="Low Temperature", command=do_nothing)
-    edit_menu.add_command(label="2D", command=do_nothing)
-    menu_bar.add_cascade(label="Spectrometer", menu=edit_menu)
+    spectrometer_menu = add_menu("Spectrometer")
+    spectrometer_menu.add_command(label="High Temperature", command=do_nothing)
+    spectrometer_menu.add_command(label="Low Temperature", command=do_nothing)
+    spectrometer_menu.add_command(label="2D", command=do_nothing)
 
     # Create a Communications menu
-    edit_menu = tk.Menu(menu_bar, tearoff=0)
-    edit_menu.add_command(label="COM Ports", command=lambda: open_window(4, ComPortControlWindow))
-    edit_menu.add_command(label="Laser IPs", command=do_nothing)
-    edit_menu.add_command(label="Communications Monitor", command=lambda: open_window(5, CommsMonitorWindow))
-    menu_bar.add_cascade(label="Communications", menu=edit_menu)
+    communications_menu = add_menu("Communications")
+    communications_menu.add_command(label="COM Ports", command=lambda: open_window(4, ComPortControlWindow))
+    communications_menu.add_command(label="Laser IPs", command=do_nothing)
+    communications_menu.add_command(label="Communications Monitor", command=lambda: open_window(5, CommsMonitorWindow))
 
     # Create a Windows menu
-    edit_menu = tk.Menu(menu_bar, tearoff=0)
-    edit_menu.add_command(label="Piezo Controls", command=lambda: open_window(1, PiezoControlWindow))
-    edit_menu.add_command(label="Festo Controls", command=lambda: open_window(2, FestControlWindow))
-    edit_menu.add_command(label="Laser Controls", command=lambda: open_window(3, LaserControlWindow))
-    menu_bar.add_cascade(label="Windows", menu=edit_menu)
-
-
-    # Add the menu bar to the window
-    window.config(menu=menu_bar)
-
-    
+    windows_menu = add_menu("Windows")
+    windows_menu.add_command(label="Piezo Controls", command=lambda: open_window(1, PiezoControlWindow))
+    windows_menu.add_command(label="Festo Controls", command=lambda: open_window(2, FestControlWindow))
+    windows_menu.add_command(label="Laser Controls", command=lambda: open_window(3, LaserControlWindow))
 
     window.mainloop()

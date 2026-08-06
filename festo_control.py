@@ -1,5 +1,6 @@
 import tkinter as tk
 import denkovi_serial as DenkTalk
+import theme
 
 #LEFT_SIDE_COMPORT = "COM7"
 #RIGHT_SIDE_COMPORT = "COM6"
@@ -141,7 +142,7 @@ if __name__ == "__main__":
     window = tk.Tk()
     window.title("Festo Control Window")
     window.geometry("280x445")
-    window.configure(bg="light gray")
+    window.configure(bg=theme.PANEL_BG)
 
     festo_window = FestoControlWindow(window, "COM7", "COM6")
 

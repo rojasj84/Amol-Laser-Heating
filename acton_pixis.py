@@ -6,6 +6,7 @@ import queue
 import import_calibration as calib_find
 from pathlib import Path
 import denkovi_serial as DenkTalk
+import theme
 
 from watchdog.observers import Observer
 from watchdog.events import PatternMatchingEventHandler
@@ -16,6 +17,8 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import TemperatureFit.TemperatureFitting as tfit
 import TemperatureFit.SpeFile as spe
 
+plt.style.use('dark_background')
+
 default_calibration_temperature = 2255
 
 class LogoDisplay(tk.Frame):
@@ -24,13 +27,13 @@ class LogoDisplay(tk.Frame):
         super().__init__(container)
 
         #Frame visual configuration
-        self.configure(width=1260,height=40,background="White", highlightbackground="black", highlightthickness=1)
+        self.configure(width=1260,height=40,background=theme.PANEL_BG, highlightbackground=theme.BORDER, highlightthickness=1)
 
         #Frame position information
         self.place(x = x_position, y = y_position)
 
         #Set logo
-        self.logotext = tk.Label(self, text="High T : Acton-PIXIS 400", font=('Helvetica', 20), background="White")
+        self.logotext = tk.Label(self, text="High T : Acton-PIXIS 400", font=('Helvetica', 20), background=theme.PANEL_BG)
         self.logotext.place(x = 5, y = 0, width=1250, height=35)
 
 class CalibrationFileSelection(tk.Frame):
@@ -39,7 +42,7 @@ class CalibrationFileSelection(tk.Frame):
         super().__init__(container)
         
         #Frame visual configuration
-        self.configure(width=320,height=320,background="White", highlightbackground="black", highlightthickness=1)
+        self.configure(width=320,height=320,background=theme.PANEL_BG, highlightbackground=theme.BORDER, highlightthickness=1)
         
         #Frame position information
         self.x_position = x_position
@@ -51,17 +54,17 @@ class CalibrationFileSelection(tk.Frame):
         load_left_file = tk.Button(self, text="Select Left Calibration File", command=lambda: self.calibration_file_open_dialog(1), font=('Helvetica', 10))
         load_left_file.place(x = 10, y=10, width = 300, height=25)
 
-        self.left_file_location = tk.Text(self, bg = "light gray", font=('Helvetica', 10))#, relief=tk.FLAT)
+        self.left_file_location = tk.Text(self, bg = theme.TEXT_BG, font=('Helvetica', 10))#, relief=tk.FLAT)
         self.left_file_location.place(x = 10, y=45, width = 300, height=50) 
 
         left_calibration_file = Path(left_calibration_file)
         left_calibration_file = left_calibration_file.absolute()
         self.left_file_location.insert("end-1c", left_calibration_file)
         
-        self.set_left_temperature = tk.Text(self, background="light gray", font=('Helvetica', 10))
+        self.set_left_temperature = tk.Text(self, background=theme.TEXT_BG, font=('Helvetica', 10))
         self.set_left_temperature.place(x=210, y=100, width = 100, height=25)
 
-        set_left_temperature_label = tk.Label(self, text="Left Calib. Temperature (K)",  borderwidth=2, relief="groove", background="white", font=('Helvetica', 10))
+        set_left_temperature_label = tk.Label(self, text="Left Calib. Temperature (K)",  borderwidth=2, relief="groove", background=theme.PANEL_BG, font=('Helvetica', 10))
         set_left_temperature_label.place(x=10, y=100, width = 200, height=25)
 
         self.set_left_temperature.insert("end-1c", default_calibration_temperature)
@@ -71,17 +74,17 @@ class CalibrationFileSelection(tk.Frame):
         load_right_file = tk.Button(self, text="Select Right Calibration File", command=lambda: self.calibration_file_open_dialog(2), font=('Helvetica', 10))
         load_right_file.place(x = 10, y=150, width = 300, height=25)
 
-        self.right_file_location = tk.Text(self, bg = "light gray", font=('Helvetica', 10))#, relief=tk.FLAT)
+        self.right_file_location = tk.Text(self, bg = theme.TEXT_BG, font=('Helvetica', 10))#, relief=tk.FLAT)
         self.right_file_location.place(x = 10, y=185, width = 300, height=50) 
         
         right_calibration_file = Path(right_calibration_file)
         right_calibration_file = right_calibration_file.absolute()
         self.right_file_location.insert("end-1c", right_calibration_file)
 
-        self.set_right_temperature = tk.Text(self, background="light gray", font=('Helvetica', 10))
+        self.set_right_temperature = tk.Text(self, background=theme.TEXT_BG, font=('Helvetica', 10))
         self.set_right_temperature.place(x=210, y=240, width = 100, height=25)
 
-        set_right_temperature_label = tk.Label(self, text="Right Calib. Temperature (K)",  borderwidth=2, relief="groove", background="white", font=('Helvetica', 10))
+        set_right_temperature_label = tk.Label(self, text="Right Calib. Temperature (K)",  borderwidth=2, relief="groove", background=theme.PANEL_BG, font=('Helvetica', 10))
         set_right_temperature_label.place(x=10, y=240, width = 200, height=25)
 
         self.set_right_temperature.insert("end-1c", default_calibration_temperature)
@@ -108,17 +111,17 @@ class TransmissionFilterSelection(tk.Frame):
         super().__init__(container)
 
         #Frame visual configuration
-        self.configure(width=930,height=250,background="White", highlightbackground="black", highlightthickness=1)
+        self.configure(width=930,height=250,background=theme.PANEL_BG, highlightbackground=theme.BORDER, highlightthickness=1)
         
         #Frame position information
         self.x_position = x_position
         self.y_position = y_position
         #self.place(x = self.x_position, y = self.y_position)
 
-        self.select_one_transmission_filter_logo = tk.Label(self, text = "Select One Transmission Filter", font=('Helvetica', 15), background="White")
+        self.select_one_transmission_filter_logo = tk.Label(self, text = "Select One Transmission Filter", font=('Helvetica', 15), background=theme.PANEL_BG)
         self.select_one_transmission_filter_logo.place(x=5,y=5, width=920, height=30)
 
-        self.select_one_transmission_filter_logo = tk.Label(self, text = "Select Iris Status and Magnification", font=('Helvetica', 15), background="White")
+        self.select_one_transmission_filter_logo = tk.Label(self, text = "Select Iris Status and Magnification", font=('Helvetica', 15), background=theme.PANEL_BG)
         self.select_one_transmission_filter_logo.place(x=5,y=135, width=920, height=30)
 
         self.left_denkovi_com_port = left_denkovi_com_port
@@ -131,41 +134,41 @@ class TransmissionFilterSelection(tk.Frame):
         self.iris_variable_left = tk.IntVar()
         self.magnification_variable_left = tk.IntVar()        
 
-        self.left_no_filter_selection = tk.Radiobutton(self,text="NO FILTER", font=('Helvetica', 10), indicatoron = 0, variable = self.filter_variable_left, value = 0b000, selectcolor="Light Blue", background="Light Blue", command=self.UpdateFestoStates) #Value corresponds to the binary state of 000 for all 3 NDFs
+        self.left_no_filter_selection = tk.Radiobutton(self,text="NO FILTER", font=('Helvetica', 10), indicatoron = 0, variable = self.filter_variable_left, value = 0b000, selectcolor=theme.LEFT_ACCENT, background=theme.LEFT_ACCENT, command=self.UpdateFestoStates) #Value corresponds to the binary state of 000 for all 3 NDFs
         self.left_no_filter_selection.place(x=30, y = 50, width=90, height=30)
         self.left_no_filter_selection.select()
 
-        self.left_700_filter_selection = tk.Radiobutton(self,text="70% FILTER", font=('Helvetica', 10), indicatoron = 0, variable = self.filter_variable_left, value = 0b001, selectcolor="Light Blue", background="Light Blue", command=self.UpdateFestoStates) #NDF state 100, value 4
+        self.left_700_filter_selection = tk.Radiobutton(self,text="70% FILTER", font=('Helvetica', 10), indicatoron = 0, variable = self.filter_variable_left, value = 0b001, selectcolor=theme.LEFT_ACCENT, background=theme.LEFT_ACCENT, command=self.UpdateFestoStates) #NDF state 100, value 4
         self.left_700_filter_selection.place(x=130, y = 50, width=90, height=30)
 
-        self.left_500_filter_selection = tk.Radiobutton(self,text="50% FILTER", font=('Helvetica', 10), indicatoron = 0, variable = self.filter_variable_left, value = 0b010, selectcolor="Light Blue", background="Light Blue", command=self.UpdateFestoStates) #NDF state 010, value 2
+        self.left_500_filter_selection = tk.Radiobutton(self,text="50% FILTER", font=('Helvetica', 10), indicatoron = 0, variable = self.filter_variable_left, value = 0b010, selectcolor=theme.LEFT_ACCENT, background=theme.LEFT_ACCENT, command=self.UpdateFestoStates) #NDF state 010, value 2
         self.left_500_filter_selection.place(x=230, y = 50, width=90, height=30)
 
-        self.left_350_filter_selection = tk.Radiobutton(self,text="35% FILTER", font=('Helvetica', 10), indicatoron = 0, variable = self.filter_variable_left, value = 0b011, selectcolor="Light Blue", background="Light Blue", command=self.UpdateFestoStates) #NDF state 110, value 6
+        self.left_350_filter_selection = tk.Radiobutton(self,text="35% FILTER", font=('Helvetica', 10), indicatoron = 0, variable = self.filter_variable_left, value = 0b011, selectcolor=theme.LEFT_ACCENT, background=theme.LEFT_ACCENT, command=self.UpdateFestoStates) #NDF state 110, value 6
         self.left_350_filter_selection.place(x=330, y = 50, width=90, height=30)
         
-        self.left_100_filter_selection = tk.Radiobutton(self,text="10% FILTER", font=('Helvetica', 10), indicatoron = 0, variable = self.filter_variable_left, value = 0b100, selectcolor="Light Blue", background="Light Blue", command=self.UpdateFestoStates) #NDF state 001, value 1
+        self.left_100_filter_selection = tk.Radiobutton(self,text="10% FILTER", font=('Helvetica', 10), indicatoron = 0, variable = self.filter_variable_left, value = 0b100, selectcolor=theme.LEFT_ACCENT, background=theme.LEFT_ACCENT, command=self.UpdateFestoStates) #NDF state 001, value 1
         self.left_100_filter_selection.place(x=30, y = 90, width=90, height=30)
 
-        self.left_070_filter_selection = tk.Radiobutton(self,text="7% FILTER", font=('Helvetica', 10), indicatoron = 0, variable = self.filter_variable_left, value = 0b101, selectcolor="Light Blue", background="Light Blue", command=self.UpdateFestoStates) #NDF state 101, value 5
+        self.left_070_filter_selection = tk.Radiobutton(self,text="7% FILTER", font=('Helvetica', 10), indicatoron = 0, variable = self.filter_variable_left, value = 0b101, selectcolor=theme.LEFT_ACCENT, background=theme.LEFT_ACCENT, command=self.UpdateFestoStates) #NDF state 101, value 5
         self.left_070_filter_selection.place(x=130, y = 90, width=90, height=30)
 
-        self.left_050_filter_selection = tk.Radiobutton(self,text="5% FILTER", font=('Helvetica', 10), indicatoron = 0, variable = self.filter_variable_left, value = 0b110, selectcolor="Light Blue", background="Light Blue", command=self.UpdateFestoStates) #NDF state 011, value 3
+        self.left_050_filter_selection = tk.Radiobutton(self,text="5% FILTER", font=('Helvetica', 10), indicatoron = 0, variable = self.filter_variable_left, value = 0b110, selectcolor=theme.LEFT_ACCENT, background=theme.LEFT_ACCENT, command=self.UpdateFestoStates) #NDF state 011, value 3
         self.left_050_filter_selection.place(x=230, y = 90, width=90, height=30)
 
-        self.left_035_filter_selection = tk.Radiobutton(self,text="3.5% FILTER", font=('Helvetica', 10), indicatoron = 0, variable = self.filter_variable_left, value = 0b111, selectcolor="Light Blue", background="Light Blue", command=self.UpdateFestoStates) #NDF state 111, value 7
+        self.left_035_filter_selection = tk.Radiobutton(self,text="3.5% FILTER", font=('Helvetica', 10), indicatoron = 0, variable = self.filter_variable_left, value = 0b111, selectcolor=theme.LEFT_ACCENT, background=theme.LEFT_ACCENT, command=self.UpdateFestoStates) #NDF state 111, value 7
         self.left_035_filter_selection.place(x=330, y = 90, width=90, height=30)
 
-        self.left_iris_selection_out = tk.Radiobutton(self, text = "Iris Out", font=('Helvetica', 12), indicatoron=0, variable=self.iris_variable_left, value = 0b0, selectcolor="Light Blue", background="Light Blue", command=self.UpdateFestoStates)
+        self.left_iris_selection_out = tk.Radiobutton(self, text = "Iris Out", font=('Helvetica', 12), indicatoron=0, variable=self.iris_variable_left, value = 0b0, selectcolor=theme.LEFT_ACCENT, background=theme.LEFT_ACCENT, command=self.UpdateFestoStates)
         self.left_iris_selection_out.place(x = 30, y = 160, width=90, height=50)
         
-        self.left_iris_selection_in = tk.Radiobutton(self, text = "Iris In", font=('Helvetica', 12), indicatoron=0, variable=self.iris_variable_left, value = 0b1, selectcolor="Light Blue", background="Light Blue", command=self.UpdateFestoStates)
+        self.left_iris_selection_in = tk.Radiobutton(self, text = "Iris In", font=('Helvetica', 12), indicatoron=0, variable=self.iris_variable_left, value = 0b1, selectcolor=theme.LEFT_ACCENT, background=theme.LEFT_ACCENT, command=self.UpdateFestoStates)
         self.left_iris_selection_in.place(x = 130, y = 160, width=90, height=50)
 
-        self.left_magnification_selection_15 = tk.Radiobutton(self, text = "15x", font=('Helvetica', 12), indicatoron=0, variable=self.magnification_variable_left, value = 0b0, selectcolor="Light Blue", background="Light Blue", command=self.UpdateFestoStates)
+        self.left_magnification_selection_15 = tk.Radiobutton(self, text = "15x", font=('Helvetica', 12), indicatoron=0, variable=self.magnification_variable_left, value = 0b0, selectcolor=theme.LEFT_ACCENT, background=theme.LEFT_ACCENT, command=self.UpdateFestoStates)
         self.left_magnification_selection_15.place(x = 230, y = 160, width=90, height=50)
         
-        self.left_magnification_selection_20 = tk.Radiobutton(self, text = "20x", font=('Helvetica', 12), indicatoron=0, variable=self.magnification_variable_left, value = 0b1, selectcolor="Light Blue", background="Light Blue", command=self.UpdateFestoStates)
+        self.left_magnification_selection_20 = tk.Radiobutton(self, text = "20x", font=('Helvetica', 12), indicatoron=0, variable=self.magnification_variable_left, value = 0b1, selectcolor=theme.LEFT_ACCENT, background=theme.LEFT_ACCENT, command=self.UpdateFestoStates)
         self.left_magnification_selection_20.place(x = 330, y = 160, width=90, height=50)
 
         # Filter Determination Raio Buttons for the Right Side
@@ -174,41 +177,41 @@ class TransmissionFilterSelection(tk.Frame):
         self.iris_variable_right = tk.IntVar()
         self.magnification_variable_right = tk.IntVar()
 
-        self.right_no_filter_selection = tk.Radiobutton(self,text="NO FILTER", font=('Helvetica', 10), indicatoron = 0, variable = self.filter_variable_right, value = 0b000, selectcolor="Pink", background="Pink", command=self.UpdateFestoStates)
+        self.right_no_filter_selection = tk.Radiobutton(self,text="NO FILTER", font=('Helvetica', 10), indicatoron = 0, variable = self.filter_variable_right, value = 0b000, selectcolor=theme.RIGHT_ACCENT, background=theme.RIGHT_ACCENT, command=self.UpdateFestoStates)
         self.right_no_filter_selection.place(x=930-90-330, y = 50, width=90, height=30)
         self.right_no_filter_selection.select()
 
-        self.right_700_filter_selection = tk.Radiobutton(self,text="70% FILTER", font=('Helvetica', 10), indicatoron = 0, variable = self.filter_variable_right, value = 0b100, selectcolor="Pink", background="Pink", command=self.UpdateFestoStates)
+        self.right_700_filter_selection = tk.Radiobutton(self,text="70% FILTER", font=('Helvetica', 10), indicatoron = 0, variable = self.filter_variable_right, value = 0b100, selectcolor=theme.RIGHT_ACCENT, background=theme.RIGHT_ACCENT, command=self.UpdateFestoStates)
         self.right_700_filter_selection.place(x=930-90-230, y = 50, width=90, height=30)
 
-        self.right_500_filter_selection = tk.Radiobutton(self,text="50% FILTER", font=('Helvetica', 10), indicatoron = 0, variable = self.filter_variable_right, value = 0b010, selectcolor="Pink", background="Pink", command=self.UpdateFestoStates)
+        self.right_500_filter_selection = tk.Radiobutton(self,text="50% FILTER", font=('Helvetica', 10), indicatoron = 0, variable = self.filter_variable_right, value = 0b010, selectcolor=theme.RIGHT_ACCENT, background=theme.RIGHT_ACCENT, command=self.UpdateFestoStates)
         self.right_500_filter_selection.place(x=930-90-130, y = 50, width=90, height=30)
 
-        self.right_350_filter_selection = tk.Radiobutton(self,text="35% FILTER", font=('Helvetica', 10), indicatoron = 0, variable = self.filter_variable_right, value = 0b110, selectcolor="Pink", background="Pink", command=self.UpdateFestoStates)
+        self.right_350_filter_selection = tk.Radiobutton(self,text="35% FILTER", font=('Helvetica', 10), indicatoron = 0, variable = self.filter_variable_right, value = 0b110, selectcolor=theme.RIGHT_ACCENT, background=theme.RIGHT_ACCENT, command=self.UpdateFestoStates)
         self.right_350_filter_selection.place(x=930-90-30, y = 50, width=90, height=30)
         
-        self.right_100_filter_selection = tk.Radiobutton(self,text="10% FILTER", font=('Helvetica', 10), indicatoron = 0, variable = self.filter_variable_right, value = 0b001, selectcolor="Pink", background="Pink", command=self.UpdateFestoStates)
+        self.right_100_filter_selection = tk.Radiobutton(self,text="10% FILTER", font=('Helvetica', 10), indicatoron = 0, variable = self.filter_variable_right, value = 0b001, selectcolor=theme.RIGHT_ACCENT, background=theme.RIGHT_ACCENT, command=self.UpdateFestoStates)
         self.right_100_filter_selection.place(x=930-90-330, y = 90, width=90, height=30)
 
-        self.right_070_filter_selection = tk.Radiobutton(self,text="7% FILTER", font=('Helvetica', 10), indicatoron = 0, variable = self.filter_variable_right, value = 0b101, selectcolor="Pink", background="Pink", command=self.UpdateFestoStates)
+        self.right_070_filter_selection = tk.Radiobutton(self,text="7% FILTER", font=('Helvetica', 10), indicatoron = 0, variable = self.filter_variable_right, value = 0b101, selectcolor=theme.RIGHT_ACCENT, background=theme.RIGHT_ACCENT, command=self.UpdateFestoStates)
         self.right_070_filter_selection.place(x=930-90-230, y = 90, width=90, height=30)
 
-        self.right_050_filter_selection = tk.Radiobutton(self,text="5% FILTER", font=('Helvetica', 10), indicatoron = 0, variable = self.filter_variable_right, value = 0b011, selectcolor="Pink", background="Pink", command=self.UpdateFestoStates)
+        self.right_050_filter_selection = tk.Radiobutton(self,text="5% FILTER", font=('Helvetica', 10), indicatoron = 0, variable = self.filter_variable_right, value = 0b011, selectcolor=theme.RIGHT_ACCENT, background=theme.RIGHT_ACCENT, command=self.UpdateFestoStates)
         self.right_050_filter_selection.place(x=930-90-130, y = 90, width=90, height=30)
 
-        self.right_035_filter_selection = tk.Radiobutton(self,text="3.5% FILTER", font=('Helvetica', 10), indicatoron = 0, variable = self.filter_variable_right, value = 0b111, selectcolor="Pink", background="Pink", command=self.UpdateFestoStates)
+        self.right_035_filter_selection = tk.Radiobutton(self,text="3.5% FILTER", font=('Helvetica', 10), indicatoron = 0, variable = self.filter_variable_right, value = 0b111, selectcolor=theme.RIGHT_ACCENT, background=theme.RIGHT_ACCENT, command=self.UpdateFestoStates)
         self.right_035_filter_selection.place(x=930-90-30, y = 90, width=90, height=30)
 
-        self.right_iris_selection_out = tk.Radiobutton(self, text = "Iris Out", font=('Helvetica', 12), indicatoron=0, variable=self.iris_variable_right, value = 0, selectcolor="Pink", background="Pink", command=self.UpdateFestoStates)
+        self.right_iris_selection_out = tk.Radiobutton(self, text = "Iris Out", font=('Helvetica', 12), indicatoron=0, variable=self.iris_variable_right, value = 0, selectcolor=theme.RIGHT_ACCENT, background=theme.RIGHT_ACCENT, command=self.UpdateFestoStates)
         self.right_iris_selection_out.place(x = 930-90-330, y = 160, width=90, height=50)
         
-        self.right_iris_selection_in = tk.Radiobutton(self, text = "Iris In", font=('Helvetica', 12), indicatoron=0, variable=self.iris_variable_right, value = 1, selectcolor="Pink", background="Pink", command=self.UpdateFestoStates)
+        self.right_iris_selection_in = tk.Radiobutton(self, text = "Iris In", font=('Helvetica', 12), indicatoron=0, variable=self.iris_variable_right, value = 1, selectcolor=theme.RIGHT_ACCENT, background=theme.RIGHT_ACCENT, command=self.UpdateFestoStates)
         self.right_iris_selection_in.place(x = 930-90-230, y = 160, width=90, height=50)
 
-        self.right_magnification_selection_15 = tk.Radiobutton(self, text = "15x", font=('Helvetica', 12), indicatoron=0, variable=self.magnification_variable_right, value = 0, selectcolor="Pink", background="Pink", command=self.UpdateFestoStates)
+        self.right_magnification_selection_15 = tk.Radiobutton(self, text = "15x", font=('Helvetica', 12), indicatoron=0, variable=self.magnification_variable_right, value = 0, selectcolor=theme.RIGHT_ACCENT, background=theme.RIGHT_ACCENT, command=self.UpdateFestoStates)
         self.right_magnification_selection_15.place(x = 930-90-130, y = 160, width=90, height=50)
         
-        self.right_magnification_selection_20 = tk.Radiobutton(self, text = "20x", font=('Helvetica', 12), indicatoron=0, variable=self.magnification_variable_right, value = 1, selectcolor="Pink", background="Pink", command=self.UpdateFestoStates)
+        self.right_magnification_selection_20 = tk.Radiobutton(self, text = "20x", font=('Helvetica', 12), indicatoron=0, variable=self.magnification_variable_right, value = 1, selectcolor=theme.RIGHT_ACCENT, background=theme.RIGHT_ACCENT, command=self.UpdateFestoStates)
         self.right_magnification_selection_20.place(x = 930-90-30, y = 160, width=90, height=50)
 
         #self.CalibrationChecking = calib_find.FestoStateCalibrationsCheck("TemperatureFit\calibration_file_table.csv")
@@ -261,7 +264,7 @@ class PlotGraphs(tk.Frame):
         super().__init__(container)
 
         #Frame visual configuration
-        self.configure(width=930,height=640,background="White", highlightbackground="black", highlightthickness=1)
+        self.configure(width=930,height=640,background=theme.PANEL_BG, highlightbackground=theme.BORDER, highlightthickness=1)
         
         #Frame position information
         self.x_position = x_position
@@ -275,6 +278,10 @@ class PlotGraphs(tk.Frame):
         self.right_raw = np.arange(1, 101)
 
         self.fig, self.axis = plt.subplots(2, 2)
+        self.fig.patch.set_facecolor(theme.PANEL_BG)
+        for row in self.axis:
+            for single_axis in row:
+                single_axis.set_facecolor(theme.PANEL_BG)
         plt.tight_layout()
         self.axis[0, 0].plot(self.wavelengths, self.left_fit)
         self.axis[0, 0].set_title('LEFT FIT')
@@ -290,7 +297,7 @@ class PlotGraphs(tk.Frame):
         self.graph_canvas.draw()
         self.graph_canvas.get_tk_widget().place(x = 0, y = 0, width=928,height=638)
 
-        self.left_temperature_label = tk.Label(self, text="TEST", font=('Helvetica', 15), background="White")
+        self.left_temperature_label = tk.Label(self, text="TEST", font=('Helvetica', 15), background=theme.PANEL_BG)
         self.left_temperature_label.place(x=10, y= 10, width = 200, height = 50)
 
         self.left_calibration_temperature = 2255
@@ -385,19 +392,20 @@ class PlotGraphs(tk.Frame):
         #self.fig, self.axis = plt.subplots(2, 2)
         #plt.tight_layout()
 
-        self.axis[0, 0].clear()
+        for row in self.axis:
+            for single_axis in row:
+                single_axis.clear()
+                single_axis.set_facecolor(theme.PANEL_BG)
+
         self.axis[0, 0].plot(self.left_wavelengths, self.left_corrected, self.left_wavelengths, self.left_fit)
         self.axis[0, 0].set_title('LEFT FIT')
 
-        self.axis[0, 1].clear()
         self.axis[0, 1].plot(self.right_wavelengths, self.right_corrected, self.right_wavelengths, self.right_fit)
         self.axis[0, 1].set_title('RIGHT FIT')
 
-        self.axis[1, 0].clear()
         self.axis[1, 0].plot(self.left_wavelengths, self.left_raw)
         self.axis[1, 0].set_title('LEFT RAW')
 
-        self.axis[1, 1].clear()
         self.axis[1, 1].plot(self.right_wavelengths, self.right_raw)
         self.axis[1, 1].set_title('RIGHT RAW')
  
@@ -409,10 +417,10 @@ class PlotGraphs(tk.Frame):
         right_temperature_string = "T= " + str(round(Estimated_Temperature_Right.fit_T)) + " +/- " + str(round(Estimated_Temperature_Right.sigT)) + " K"
 
         # Place the labels containing the temperatures of the fit
-        self.left_temperature_label = tk.Label(self, text=left_temperature_string, font=('Helvetica', 15), background="White", anchor="w")# highlightbackground="black", highlightthickness=1)
+        self.left_temperature_label = tk.Label(self, text=left_temperature_string, font=('Helvetica', 15), background=theme.PANEL_BG, anchor="w")# highlightbackground=theme.BORDER, highlightthickness=1)
         self.left_temperature_label.place(x=77, y= 30, width = 200, height = 30)
 
-        self.left_temperature_label = tk.Label(self, text=right_temperature_string, font=('Helvetica', 15), background="White", anchor="w")# highlightbackground="black", highlightthickness=1)
+        self.left_temperature_label = tk.Label(self, text=right_temperature_string, font=('Helvetica', 15), background=theme.PANEL_BG, anchor="w")# highlightbackground=theme.BORDER, highlightthickness=1)
         self.left_temperature_label.place(x=530, y= 30, width = 200, height = 30)
 
 class DataFileHandling(tk.Frame):
@@ -421,7 +429,7 @@ class DataFileHandling(tk.Frame):
         super().__init__(container)
         
         #Frame visual configuration
-        self.configure(width=320,height=370,background="White", highlightbackground="black", highlightthickness=1)
+        self.configure(width=320,height=370,background=theme.PANEL_BG, highlightbackground=theme.BORDER, highlightthickness=1)
         
         #Frame position information
         self.place(x = x_position, y = y_position)
@@ -442,23 +450,23 @@ class DataFileHandling(tk.Frame):
         #Frame buttons and labels
         self.select_lightfield_spectra = tk.Button(self, text="Select Single .spe for T-fit", font=('Helvetica', 10), command=lambda: self.data_file_open_dialog(1))
         self.select_lightfield_spectra.place(x = 10, y = 10, width=300, height = 30)
-        self.selected_lightfield_spectra = tk.Text(self, font=('Helvetica', 10), highlightbackground="black", highlightthickness=0, background="Light Gray")
+        self.selected_lightfield_spectra = tk.Text(self, font=('Helvetica', 10), highlightbackground=theme.BORDER, highlightthickness=0, background=theme.TEXT_BG)
         self.selected_lightfield_spectra.place(x = 10, y = 50, width=300, height = 50)
 
         self.select_folder_to_save_tfit = tk.Button(self, text="Select Folder for T-fit", font=('Helvetica', 10), command=lambda: self.data_file_open_dialog(2))
         self.select_folder_to_save_tfit.place(x = 10, y = 110, width=300, height = 30)
-        self.selected_folder_to_save_tfit = tk.Text(self, font=('Helvetica', 10), highlightbackground="black", highlightthickness=0, background="Light Gray")
+        self.selected_folder_to_save_tfit = tk.Text(self, font=('Helvetica', 10), highlightbackground=theme.BORDER, highlightthickness=0, background=theme.TEXT_BG)
         self.selected_folder_to_save_tfit.place(x = 10, y = 150, width=300, height = 50)
-        self.select_automatic_fit = tk.Checkbutton(self, text="Automatic Fitting", bg = "White", font=('Helvetica', 10), variable = self.automatic_fitting_button_state, command=lambda: self.automatic_file_fitting())
+        self.select_automatic_fit = tk.Checkbutton(self, text="Automatic Fitting", bg = theme.PANEL_BG, font=('Helvetica', 10), variable = self.automatic_fitting_button_state, command=lambda: self.automatic_file_fitting())
         self.select_automatic_fit.place(x = 10, y = 200, width= 150, height= 30)
 
         autofit_folderpath = Path(autofit_folderpath)
         autofit_folderpath = autofit_folderpath.absolute()
         self.selected_folder_to_save_tfit.insert("end-1c", autofit_folderpath)
 
-        self.enter_output_filename = tk.Label(self, text="Enter output filename", font=('Helvetica', 10), highlightbackground="black", highlightthickness=1)
+        self.enter_output_filename = tk.Label(self, text="Enter output filename", font=('Helvetica', 10), highlightbackground=theme.BORDER, highlightthickness=1)
         self.enter_output_filename.place(x = 10, y = 250, width=300, height = 30)
-        self.entered_output_filename = tk.Text(self, font=('Helvetica', 10), highlightbackground="black", highlightthickness=0, background="Light Gray")
+        self.entered_output_filename = tk.Text(self, font=('Helvetica', 10), highlightbackground=theme.BORDER, highlightthickness=0, background=theme.TEXT_BG)
         self.entered_output_filename.place(x = 10, y = 290, width=300, height = 30)
         self.select_folder_to_save_tfit = tk.Button(self, text="Save Temperature Fit", font=('Helvetica', 10), command=lambda: self.data_file_open_dialog(2))
         self.select_folder_to_save_tfit.place(x = 10, y = 325, width=300, height = 30)
