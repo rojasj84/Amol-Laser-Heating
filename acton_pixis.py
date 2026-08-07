@@ -13,6 +13,8 @@ from watchdog.events import PatternMatchingEventHandler
 from tkinter import filedialog
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import matplotlib.patches as patches
+import json
 
 import TemperatureFit.TemperatureFitting as tfit
 import TemperatureFit.SpeFile as spe
@@ -395,12 +397,48 @@ class PlotGraphs(tk.Frame):
         self.left_temperature_label = tk.Label(self, text="TEST", font=('Helvetica', 15), background=theme.PANEL_BG)
         self.left_temperature_label.place(x=10, y= 10, width = 200, height = 50)
 
+        # Setting default ROI variables in the class state
+        self.left_roi_xo = 1
+        self.left_roi_xf = 1339
+        self.left_roi_yo = 0
+        self.left_roi_yf = 34
+
+        self.right_roi_xo = 1
+        self.right_roi_xf = 1339
+        self.right_roi_yo = 35
+        self.right_roi_yf = 69
+
+        self.current_frame_index = 0
+        
+        # Frame navigator controls
+        self.btn_prev_frame = tk.Button(self, text="<", font=('Helvetica', 12, 'bold'), command=self.prev_frame)
+        self.btn_prev_frame.place(x=320, y=30, width=30, height=30)
+        
+        self.frame_status_label = tk.Label(self, text="Frame: 1 / 1", font=('Helvetica', 12), background=theme.PANEL_BG)
+        self.frame_status_label.place(x=360, y=30, width=120, height=30)
+
+        self.btn_next_frame = tk.Button(self, text=">", font=('Helvetica', 12, 'bold'), command=self.next_frame)
+        self.btn_next_frame.place(x=490, y=30, width=30, height=30)
+
         self.left_calibration_temperature = 2255
         self.right_calibration_temperature = 2255
         self.left_calibration_file = spe.SpeFile(left_calibration_file)
         self.right_calibration_file = spe.SpeFile(right_calibration_file)
         self.data_file = spe.SpeFile(default_fit_file)
         self.update_graphs()
+
+    def prev_frame(self):
+        if hasattr(self, 'data_file') and getattr(self.data_file, 'num_frames', 1) > 1:
+            if self.current_frame_index > 0:
+                self.current_frame_index -= 1
+                self.update_graphs()
+
+    def next_frame(self):
+        if hasattr(self, 'data_file') and getattr(self.data_file, 'num_frames', 1) > 1:
+            if self.current_frame_index < self.data_file.num_frames - 1:
+                self.current_frame_index += 1
+                self.update_graphs()
+
 
     def update_graphs(self):
         left_calibration_data = self.left_calibration_file
@@ -411,40 +449,31 @@ class PlotGraphs(tk.Frame):
         ccd_information = left_calibration_data.img
         ccd_data_size = np.shape(left_calibration_data.img)
 
-        ccd_information2 = measurement_data.img
-        ccd_data_size2 = np.shape(measurement_data.img)
+        # --- Handle multi-frame or single-frame measurement data ---
+        num_frames = getattr(measurement_data, 'num_frames', 1)
+        if num_frames > 1:
+            # Bound the frame index just in case a new file has fewer frames
+            if self.current_frame_index >= num_frames:
+                self.current_frame_index = 0
+            ccd_information2 = measurement_data.img[self.current_frame_index]
+        else:
+            self.current_frame_index = 0
+            ccd_information2 = measurement_data.img
+            
+        # Update frame status UI
+        self.frame_status_label.config(text=f"Frame: {self.current_frame_index + 1} / {num_frames}")
+        
+        # Toggle buttons based on frame bounds
+        self.btn_prev_frame.config(state="normal" if self.current_frame_index > 0 else "disabled")
+        self.btn_next_frame.config(state="normal" if self.current_frame_index < num_frames - 1 else "disabled")
+
+        ccd_data_size2 = np.shape(ccd_information2)
 
         ccd_information3 = right_calibration_data.img
         ccd_data_size3 = np.shape(right_calibration_data.img)
 
 
-        #Setting an ROI for testing purposes 
-        self.left_roi_xo = 50
-        self.left_roi_xf = 1004
-        self.left_roi_yo = 13
-        self.left_roi_yf = 27
-
-        self.right_roi_xo = 50
-        self.right_roi_xf = 1004
-        self.right_roi_yo = 41
-        self.right_roi_yf = 55
-
-        
-        #Setting an ROI for testing purposes 
-        self.left_roi_xo = 1
-        self.left_roi_xf = 1339
-        self.left_roi_yo = 0
-        self.left_roi_yf = 34
-
-        self.right_roi_xo = 1
-        self.right_roi_xf = 1339
-        self.right_roi_yo = 35
-        self.right_roi_yf = 69
-        
-        #print(left_calibration_data.x_calibration)
-        #print(left_calibration_data.roi_width)
-        #print(left_calibration_data.roi_y)
-        #print(left_calibration_data.roi_height)
+        ccd_data_size3 = np.shape(right_calibration_data.img)
 
 
         #Left Spectrum
@@ -513,10 +542,10 @@ class PlotGraphs(tk.Frame):
 
         # Place the labels containing the temperatures of the fit
         self.left_temperature_label = tk.Label(self, text=left_temperature_string, font=('Helvetica', 15), background=theme.PANEL_BG, anchor="w")# highlightbackground=theme.BORDER, highlightthickness=1)
-        self.left_temperature_label.place(x=77, y= 30, width = 200, height = 30)
+        self.left_temperature_label.place(x=77, y= 30, width = 230, height = 30)
 
-        self.left_temperature_label = tk.Label(self, text=right_temperature_string, font=('Helvetica', 15), background=theme.PANEL_BG, anchor="w")# highlightbackground=theme.BORDER, highlightthickness=1)
-        self.left_temperature_label.place(x=530, y= 30, width = 200, height = 30)
+        self.right_temperature_label = tk.Label(self, text=right_temperature_string, font=('Helvetica', 15), background=theme.PANEL_BG, anchor="w")# highlightbackground=theme.BORDER, highlightthickness=1)
+        self.right_temperature_label.place(x=530, y= 30, width = 230, height = 30)
 
 class DataFileHandling(tk.Frame):
     def __init__(self, container, temperature_plots, calibration_files, x_position, y_position, autofit_folderpath):
@@ -597,6 +626,7 @@ class DataFileHandling(tk.Frame):
             self.plots.left_calibration_file = spe.SpeFile(left_calibration_file_location)
             self.plots.right_calibration_file = spe.SpeFile(right_calibration_file_location)
             self.plots.data_file = spe.SpeFile(r'{}'.format(file_path))
+            self.plots.current_frame_index = 0
             self.plots.update_graphs()
             return True
         except Exception as read_error:
@@ -683,6 +713,7 @@ class DataFileHandling(tk.Frame):
             self.plots.left_calibration_file = spe.SpeFile(left_calibration_file_location)
             self.plots.right_calibration_file = spe.SpeFile(right_calibration_file_location)
             self.plots.data_file = spe.SpeFile(r'{}'.format(self.open_file_path))
+            self.plots.current_frame_index = 0
             self.plots.update_graphs()
             
         elif file_location_number == 2:
@@ -690,6 +721,194 @@ class DataFileHandling(tk.Frame):
             #print(open_file_name)
             self.selected_folder_to_save_tfit.delete("1.0",tk.END)
             self.selected_folder_to_save_tfit.insert(tk.END, self.open_folder_path)        
+
+class ROISelectionWindow(tk.Toplevel):
+    def __init__(self, parent, plot_graphs_instance):
+        super().__init__(parent)
+        self.title("Dynamic ROI Configuration")
+        self.geometry("900x700")
+        
+        theme.apply_dark_theme(self)
+        theme.apply_dark_titlebar(self)
+        
+        self.plot_graphs = plot_graphs_instance
+        
+        # Get data for image
+        if hasattr(self.plot_graphs, 'data_file') and self.plot_graphs.data_file is not None:
+            measurement_data = self.plot_graphs.data_file
+            num_frames = getattr(measurement_data, 'num_frames', 1)
+            if num_frames > 1:
+                img_data = measurement_data.img[self.plot_graphs.current_frame_index]
+            else:
+                img_data = measurement_data.img
+        else:
+            # Fallback to empty array
+            img_data = np.zeros((100, 1340))
+            
+        # Left Panel - Image Plot
+        self.fig, self.ax = plt.subplots(figsize=(6.5, 5.5))
+        self.fig.patch.set_facecolor(theme.PANEL_BG)
+        self.ax.set_facecolor(theme.PANEL_BG)
+        
+        # Calculate dynamic vmin/vmax to avoid blowing out contrast
+        vmax = np.percentile(img_data, 99) if np.max(img_data) > 0 else 1000
+        self.im = self.ax.imshow(img_data, aspect='auto', cmap='viridis', vmax=vmax)
+        self.fig.colorbar(self.im, ax=self.ax)
+        self.ax.set_title("CCD Image", color="white")
+        self.ax.tick_params(colors="white")
+        
+        self.canvas = FigureCanvasTkAgg(self.fig, master=self)
+        self.canvas.draw()
+        self.canvas.get_tk_widget().place(x=10, y=10, width=650, height=650)
+        
+        # Right Panel - Controls
+        control_frame = tk.Frame(self, bg=theme.PANEL_BG)
+        control_frame.place(x=670, y=10, width=220, height=680)
+        
+        tk.Label(control_frame, text="Left Spectrum (Green)", bg=theme.PANEL_BG, fg="green", font=("Helvetica", 11, "bold")).pack(pady=(5, 2))
+        
+        # X and Y controls for Left
+        tk.Label(control_frame, text="X-Start:", bg=theme.PANEL_BG, fg=theme.FG).pack()
+        self.left_x_start_var = tk.StringVar(value=str(self.plot_graphs.left_roi_xo))
+        tk.Spinbox(control_frame, from_=0, to=2048, textvariable=self.left_x_start_var, command=self.update_lines, bg=theme.TEXT_BG, fg=theme.FG).pack()
+        self.left_x_start_var.trace("w", lambda name, index, mode: self.update_lines())
+
+        tk.Label(control_frame, text="X-End:", bg=theme.PANEL_BG, fg=theme.FG).pack()
+        self.left_x_end_var = tk.StringVar(value=str(self.plot_graphs.left_roi_xf))
+        tk.Spinbox(control_frame, from_=0, to=2048, textvariable=self.left_x_end_var, command=self.update_lines, bg=theme.TEXT_BG, fg=theme.FG).pack()
+        self.left_x_end_var.trace("w", lambda name, index, mode: self.update_lines())
+
+        tk.Label(control_frame, text="Y-Start:", bg=theme.PANEL_BG, fg=theme.FG).pack()
+        self.left_y_start_var = tk.StringVar(value=str(self.plot_graphs.left_roi_yo))
+        tk.Spinbox(control_frame, from_=0, to=2048, textvariable=self.left_y_start_var, command=self.update_lines, bg=theme.TEXT_BG, fg=theme.FG).pack()
+        self.left_y_start_var.trace("w", lambda name, index, mode: self.update_lines())
+        
+        tk.Label(control_frame, text="Y-End:", bg=theme.PANEL_BG, fg=theme.FG).pack()
+        self.left_y_end_var = tk.StringVar(value=str(self.plot_graphs.left_roi_yf))
+        tk.Spinbox(control_frame, from_=0, to=2048, textvariable=self.left_y_end_var, command=self.update_lines, bg=theme.TEXT_BG, fg=theme.FG).pack()
+        self.left_y_end_var.trace("w", lambda name, index, mode: self.update_lines())
+        
+        tk.Label(control_frame, text="Right Spectrum (Red)", bg=theme.PANEL_BG, fg="red", font=("Helvetica", 11, "bold")).pack(pady=(15, 2))
+        
+        # X and Y controls for Right
+        tk.Label(control_frame, text="X-Start:", bg=theme.PANEL_BG, fg=theme.FG).pack()
+        self.right_x_start_var = tk.StringVar(value=str(self.plot_graphs.right_roi_xo))
+        tk.Spinbox(control_frame, from_=0, to=2048, textvariable=self.right_x_start_var, command=self.update_lines, bg=theme.TEXT_BG, fg=theme.FG).pack()
+        self.right_x_start_var.trace("w", lambda name, index, mode: self.update_lines())
+
+        tk.Label(control_frame, text="X-End:", bg=theme.PANEL_BG, fg=theme.FG).pack()
+        self.right_x_end_var = tk.StringVar(value=str(self.plot_graphs.right_roi_xf))
+        tk.Spinbox(control_frame, from_=0, to=2048, textvariable=self.right_x_end_var, command=self.update_lines, bg=theme.TEXT_BG, fg=theme.FG).pack()
+        self.right_x_end_var.trace("w", lambda name, index, mode: self.update_lines())
+
+        tk.Label(control_frame, text="Y-Start:", bg=theme.PANEL_BG, fg=theme.FG).pack()
+        self.right_y_start_var = tk.StringVar(value=str(self.plot_graphs.right_roi_yo))
+        tk.Spinbox(control_frame, from_=0, to=2048, textvariable=self.right_y_start_var, command=self.update_lines, bg=theme.TEXT_BG, fg=theme.FG).pack()
+        self.right_y_start_var.trace("w", lambda name, index, mode: self.update_lines())
+        
+        tk.Label(control_frame, text="Y-End:", bg=theme.PANEL_BG, fg=theme.FG).pack()
+        self.right_y_end_var = tk.StringVar(value=str(self.plot_graphs.right_roi_yf))
+        tk.Spinbox(control_frame, from_=0, to=2048, textvariable=self.right_y_end_var, command=self.update_lines, bg=theme.TEXT_BG, fg=theme.FG).pack()
+        self.right_y_end_var.trace("w", lambda name, index, mode: self.update_lines())
+        
+        # Save / Load Config Buttons
+        btn_frame = tk.Frame(control_frame, bg=theme.PANEL_BG)
+        btn_frame.pack(pady=10)
+        tk.Button(btn_frame, text="Load Config", command=self.load_config, font=("Helvetica", 9), bg=theme.PANEL_BG, fg=theme.FG).pack(side="left", padx=5)
+        tk.Button(btn_frame, text="Save Config", command=self.save_config, font=("Helvetica", 9), bg=theme.PANEL_BG, fg=theme.FG).pack(side="left", padx=5)
+
+        self.btn_apply = tk.Button(control_frame, text="Apply & Close", command=self.apply_and_close, font=("Helvetica", 11, "bold"), bg=theme.SELECT_BG, fg=theme.FG)
+        self.btn_apply.pack(pady=10)
+        
+        # Bounding boxes references
+        self.left_rect = None
+        self.right_rect = None
+        
+        self.update_lines()
+
+    def save_config(self):
+        file_path = filedialog.asksaveasfilename(defaultextension=".json", filetypes=[("JSON files", "*.json")])
+        if not file_path:
+            return
+        config = {
+            "left_x_start": int(self.left_x_start_var.get()),
+            "left_x_end": int(self.left_x_end_var.get()),
+            "left_y_start": int(self.left_y_start_var.get()),
+            "left_y_end": int(self.left_y_end_var.get()),
+            "right_x_start": int(self.right_x_start_var.get()),
+            "right_x_end": int(self.right_x_end_var.get()),
+            "right_y_start": int(self.right_y_start_var.get()),
+            "right_y_end": int(self.right_y_end_var.get())
+        }
+        with open(file_path, "w") as f:
+            json.dump(config, f, indent=4)
+            
+    def load_config(self):
+        file_path = filedialog.askopenfilename(filetypes=[("JSON files", "*.json")])
+        if not file_path:
+            return
+        try:
+            with open(file_path, "r") as f:
+                config = json.load(f)
+            self.left_x_start_var.set(str(config.get("left_x_start", 1)))
+            self.left_x_end_var.set(str(config.get("left_x_end", 1339)))
+            self.left_y_start_var.set(str(config.get("left_y_start", 0)))
+            self.left_y_end_var.set(str(config.get("left_y_end", 34)))
+            
+            self.right_x_start_var.set(str(config.get("right_x_start", 1)))
+            self.right_x_end_var.set(str(config.get("right_x_end", 1339)))
+            self.right_y_start_var.set(str(config.get("right_y_start", 35)))
+            self.right_y_end_var.set(str(config.get("right_y_end", 69)))
+            
+            self.update_lines()
+        except Exception as e:
+            print(f"Failed to load config: {e}")
+        
+    def update_lines(self):
+        try:
+            lx_start = int(self.left_x_start_var.get())
+            lx_end = int(self.left_x_end_var.get())
+            ly_start = int(self.left_y_start_var.get())
+            ly_end = int(self.left_y_end_var.get())
+            
+            rx_start = int(self.right_x_start_var.get())
+            rx_end = int(self.right_x_end_var.get())
+            ry_start = int(self.right_y_start_var.get())
+            ry_end = int(self.right_y_end_var.get())
+        except ValueError:
+            return # Ignore if not a valid integer
+            
+        if self.left_rect: self.left_rect.remove()
+        if self.right_rect: self.right_rect.remove()
+        
+        # Rectangle(xy, width, height)
+        # We use ly_start as y, and ly_end-ly_start as height
+        self.left_rect = patches.Rectangle((lx_start, ly_start), lx_end - lx_start, ly_end - ly_start, 
+                                           linewidth=2, edgecolor='green', facecolor='none', linestyle='--')
+        self.ax.add_patch(self.left_rect)
+        
+        self.right_rect = patches.Rectangle((rx_start, ry_start), rx_end - rx_start, ry_end - ry_start, 
+                                            linewidth=2, edgecolor='red', facecolor='none', linestyle='--')
+        self.ax.add_patch(self.right_rect)
+        
+        self.canvas.draw_idle()
+        
+    def apply_and_close(self):
+        try:
+            self.plot_graphs.left_roi_xo = int(self.left_x_start_var.get())
+            self.plot_graphs.left_roi_xf = int(self.left_x_end_var.get())
+            self.plot_graphs.left_roi_yo = int(self.left_y_start_var.get())
+            self.plot_graphs.left_roi_yf = int(self.left_y_end_var.get())
+            
+            self.plot_graphs.right_roi_xo = int(self.right_x_start_var.get())
+            self.plot_graphs.right_roi_xf = int(self.right_x_end_var.get())
+            self.plot_graphs.right_roi_yo = int(self.right_y_start_var.get())
+            self.plot_graphs.right_roi_yf = int(self.right_y_end_var.get())
+            
+            self.plot_graphs.update_graphs()
+            self.destroy()
+        except ValueError:
+            pass
 
 class InitiateActonTfit(tk.Frame):
     #def __init__(self, x_position, y_position):
@@ -729,6 +948,13 @@ class InitiateActonTfit(tk.Frame):
         self.show_calibration_selection_window = tk.Button(self, text="Calibration Selection", command=lambda: self.select_file_handling(1))
         self.show_calibration_selection_window.place(x = 10, y = 60, width = 160, height = 25)
         self.show_calibration_selection_window.config(state="active")
+
+        # ROI Settings Button
+        self.btn_roi_settings = tk.Button(self, text="ROI Settings", command=self.open_roi_settings, font=('Helvetica', 12, 'bold'))
+        self.btn_roi_settings.place(x=10, y=470, width=320, height=40)
+
+    def open_roi_settings(self):
+        ROISelectionWindow(self, self.Temperature_graphs)
 
     def select_file_handling(self, selected_window):
         if selected_window == 1:
