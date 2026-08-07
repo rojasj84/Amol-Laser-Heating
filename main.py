@@ -197,9 +197,9 @@ if __name__ == "__main__":
     ComPortControlWindow = ComPort_Controls()
     CommsMonitorWindow = CommsMonitor_Controls()
 
-    LaserControlWindow.destroy() #Removing festo control from display since the user doesn't normally need to access directly the Festo States
-    FestoControlWindow.destroy() #Removing festo control from display since the user doesn't normally need to access directly the Festo States
-    PiezoControlWindow.destroy() #Removing festo control from display since the user doesn't normally need to access directly the Festo States
+    LaserControlWindow.destroy() 
+    #FestoControlWindow.destroy() 
+    PiezoControlWindow.destroy() 
     ComPortControlWindow.destroy()
     CommsMonitorWindow.destroy()
     
