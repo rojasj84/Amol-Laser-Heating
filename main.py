@@ -137,14 +137,14 @@ class ComPort_Controls(tk.Toplevel):
             globals()['agilis_com_port'] = self.local_agilis_com_port.get()
 
         #If statement for updating the Festo Relays 
-        if FestControlWindow.winfo_exists():
+        if FestoControlWindow.winfo_exists():
             #Updating the values within the global variables for festo comports
             globals()['right_denkovi_com_port'] = self.right_relays_com_port.get()
             globals()['left_denkovi_com_port'] = self.left_relays_com_port.get()
 
             #Updating the values within the existing classes
-            FestControlWindow.FestoControlClass.RightSideControls.right_side_comport = self.right_relays_com_port.get()
-            FestControlWindow.FestoControlClass.LeftSideControls.left_side_comport = self.left_relays_com_port.get()
+            FestoControlWindow.FestoControlClass.RightSideControls.right_side_comport = self.right_relays_com_port.get()
+            FestoControlWindow.FestoControlClass.LeftSideControls.left_side_comport = self.left_relays_com_port.get()
         else:
             #Updating the values within the global variables for festo comports
             globals()['right_denkovi_com_port'] = self.right_relays_com_port.get()
@@ -160,7 +160,7 @@ def open_window(window_value, window_in_question):
         if window_value == 1:   #Check for which window to reopen               
             globals()['PiezoControlWindow'] = Piezo_Controls()    
         elif window_value == 2:   #Check for which window to reopen               
-            globals()['FestControlWindow'] = Festo_Controls()    
+            globals()['FestoControlWindow'] = Festo_Controls()    
         elif window_value == 3:
             globals()['LaserControlWindow'] = Laser_Controls()
         elif window_value == 4:
@@ -193,12 +193,12 @@ if __name__ == "__main__":
     ActonControlWindow = ActonPixis = InitiateActonTfit(window, 0, MENU_BAR_HEIGHT, left_denkovi_com_port, right_denkovi_com_port)
     LaserControlWindow = Laser_Controls()
     PiezoControlWindow = Piezo_Controls()
-    FestControlWindow = Festo_Controls()
+    FestoControlWindow = Festo_Controls()
     ComPortControlWindow = ComPort_Controls()
     CommsMonitorWindow = CommsMonitor_Controls()
 
     LaserControlWindow.destroy() #Removing festo control from display since the user doesn't normally need to access directly the Festo States
-    FestControlWindow.destroy() #Removing festo control from display since the user doesn't normally need to access directly the Festo States
+    FestoControlWindow.destroy() #Removing festo control from display since the user doesn't normally need to access directly the Festo States
     PiezoControlWindow.destroy() #Removing festo control from display since the user doesn't normally need to access directly the Festo States
     ComPortControlWindow.destroy()
     CommsMonitorWindow.destroy()
@@ -239,7 +239,7 @@ if __name__ == "__main__":
     # Create a Windows menu
     windows_menu = add_menu("Windows")
     windows_menu.add_command(label="Piezo Controls", command=lambda: open_window(1, PiezoControlWindow))
-    windows_menu.add_command(label="Festo Controls", command=lambda: open_window(2, FestControlWindow))
+    windows_menu.add_command(label="Festo Controls", command=lambda: open_window(2, FestoControlWindow))
     windows_menu.add_command(label="Laser Controls", command=lambda: open_window(3, LaserControlWindow))
 
     window.mainloop()
