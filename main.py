@@ -199,7 +199,7 @@ if __name__ == "__main__":
 
     LaserControlWindow.destroy() 
     #FestoControlWindow.destroy() 
-    PiezoControlWindow.destroy() 
+    #PiezoControlWindow.destroy() 
     ComPortControlWindow.destroy()
     CommsMonitorWindow.destroy()
     
