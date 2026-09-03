@@ -6,6 +6,15 @@ from PIL import ImageTk, Image
 from agilis_control import *
 from denkovi_serial import *
 import theme
+from laser_communication import (
+    laser_send_command,
+    guide_laser_left_on,
+    guide_laser_left_off,
+    guide_laser_right_on,
+    guide_laser_right_off,
+    DEFAULT_LEFT_LASER_IP,
+    DEFAULT_RIGHT_LASER_IP,
+)
 
 win_color = theme.PANEL_BG
 
@@ -76,8 +85,8 @@ def scale_images(file_loc,scale):
             laser2_speed_ind.configure(image=speed_img)
             laser2_speed_ind.image = speed_img
 
-def initiate_remote_control(laser1_motors, laser2_motors):
-    RemoteControlWindow(laser1_motors, laser2_motors)
+def initiate_remote_control(laser1_motors, laser2_motors, left_laser_ip=DEFAULT_LEFT_LASER_IP, right_laser_ip=DEFAULT_RIGHT_LASER_IP):
+    RemoteControlWindow(laser1_motors, laser2_motors, left_laser_ip, right_laser_ip)
 
 #***** Classes for building GUI *****
 class AgilisControlPanel(tk.Frame):
@@ -238,20 +247,22 @@ class AgilisControlPanel(tk.Frame):
             self.speed_display.place(relx=0.5,rely=0.5, anchor="center")
 
 class RemoteControlWindow(tk.Toplevel):
-    def __init__(self, laser1_motors, laser2_motors):
+    def __init__(self, laser1_motors, laser2_motors, left_laser_ip=DEFAULT_LEFT_LASER_IP, right_laser_ip=DEFAULT_RIGHT_LASER_IP):
         super().__init__()
 
         self.laser1_motors = laser1_motors
         self.laser2_motors = laser2_motors
+        self.left_laser_ip = left_laser_ip
+        self.right_laser_ip = right_laser_ip
 
         self.title("Stream Deck Remote Control")
         self.geometry("400x100")
         self.configure(bg=win_color)
 
-        # Setting an innitial value to check for key pressed and make sure nothing happens after the key is first pressed
+        # Setting an initial value to check for key pressed and make sure nothing happens after the key is first pressed
         # This is to make sure the behavior of key pressed on the stream deck match the press/hold and release behaviors of the mouse 
         # interphase for the main gui
-        self.pressedkey = "0"
+        self.pressedkey = None
 
         RemoteContorLabel = tk.Label(self, bg=win_color, text = "Laser Remote Control is ACTIVE", fg='red', font=('Agency FB', 14, 'bold'))
         RemoteContorLabel.place(relx=0.5,rely=0.2,anchor=tk.CENTER)
@@ -263,12 +274,36 @@ class RemoteControlWindow(tk.Toplevel):
         self.bind("<KeyRelease>", self.keyup)
         self.focus_set()
 
+    def guide_laser_left_on(self):
+        """Turn Left guide laser ON (ABN)"""
+        guide_laser_left_on(self.left_laser_ip)
+
+    def guide_laser_left_off(self):
+        """Turn Left guide laser OFF (ABF)"""
+        guide_laser_left_off(self.left_laser_ip)
+
+    def guide_laser_right_on(self):
+        """Turn Right guide laser ON (ABN)"""
+        guide_laser_right_on(self.right_laser_ip)
+
+    def guide_laser_right_off(self):
+        """Turn Right guide laser OFF (ABF)"""
+        guide_laser_right_off(self.right_laser_ip)
+
+    def destroy(self):
+        try:
+            self.guide_laser_left_off()
+            self.guide_laser_right_off()
+        except Exception:
+            pass
+        super().destroy()
+
     # Hotkey setting for the release of a hotkey
     def keyup(self, e):
         laser1_PiezoMotors = self.laser1_motors
         laser2_PiezoMotors = self.laser2_motors
 
-        #Laser 1 Hotkeys
+        #Laser 1 Hotkeys (Left Laser)
         #Activating the laser axis translations
         if e.char == "a":
             laser1_PiezoMotors.Laser_Jog_Left.Stop_Piezo_Travel(laser1_PiezoMotors.Laser_Jog_Left.channel, laser1_PiezoMotors.Laser_Jog_Left.axis)
@@ -283,10 +318,10 @@ class RemoteControlWindow(tk.Toplevel):
         if e.char == "e":
             laser1_PiezoMotors.laser_right_focus.Stop_Piezo_Travel(laser1_PiezoMotors.laser_right_focus.channel, laser1_PiezoMotors.laser_right_focus.axis)
         if e.char == "3":
-            #place holder for later, to fire guide laser
-            do_nothing()
+            # Fire Left guide laser off
+            self.guide_laser_left_off()
 
-        #Laser 2 Hotkeys
+        #Laser 2 Hotkeys (Right Laser)
         #Activating the laser axis translations
         if e.char == "j":
             laser2_PiezoMotors.Laser_Jog_Left.Stop_Piezo_Travel(laser2_PiezoMotors.Laser_Jog_Left.channel, laser2_PiezoMotors.Laser_Jog_Left.axis)
@@ -301,10 +336,10 @@ class RemoteControlWindow(tk.Toplevel):
         if e.char == "o":
             laser2_PiezoMotors.laser_right_focus.Stop_Piezo_Travel(laser2_PiezoMotors.laser_right_focus.channel, laser2_PiezoMotors.laser_right_focus.axis)
         if e.char == "0":
-            #place holder for later, to fire guide laser
-            do_nothing()
+            # Fire Right guide laser off
+            self.guide_laser_right_off()
 
-        self.pressedkey = 0
+        self.pressedkey = None
 
     # Hotkey setting for holding down a hotkey
     def keydown(self, e):
@@ -313,7 +348,7 @@ class RemoteControlWindow(tk.Toplevel):
 
         if e.char != self.pressedkey:
             self.pressedkey = e.char
-            #Laser 1 Hotkeys
+            #Laser 1 Hotkeys (Left Laser)
             #Activating the laser axis translations
             if e.char == "a":
                 #print("This is a test", self.pressedkey)
@@ -329,10 +364,10 @@ class RemoteControlWindow(tk.Toplevel):
             if e.char == "e":
                 laser1_PiezoMotors.laser_right_focus.Start_Piezo_Travel(laser1_PiezoMotors.laser_right_focus.channel, laser1_PiezoMotors.laser_right_focus.axis, laser1_PiezoMotors.laser_right_focus.direction*laser1_PiezoMotors.jog_speed_local)
             if e.char == "3":
-                #place holder for later, to fire guide laser
-                do_nothing()
+                # Fire Left guide laser on
+                self.guide_laser_left_on()
 
-            #Laser 2 Hotkeys
+            #Laser 2 Hotkeys (Right Laser)
             #Activating the laser axis translations
             if e.char == "j":
                 #print("This is a test", self.pressedkey)
@@ -348,9 +383,8 @@ class RemoteControlWindow(tk.Toplevel):
             if e.char == "o":
                 laser2_PiezoMotors.laser_right_focus.Start_Piezo_Travel(laser2_PiezoMotors.laser_right_focus.channel, laser2_PiezoMotors.laser_right_focus.axis, laser2_PiezoMotors.laser_right_focus.direction*laser2_PiezoMotors.jog_speed_local)
             if e.char == "0":
-                #place holder for later, to fire guide laser
-                do_nothing()
-
+                # Fire Right guide laser on
+                self.guide_laser_right_on()
 
             # Changing the speed settings for lasers 1 and 2
             if e.char == "1":
@@ -363,15 +397,8 @@ class RemoteControlWindow(tk.Toplevel):
                 laser2_PiezoMotors.change_jog_speed_local("+")
        
 class InitiatePiezoMotorControls(tk.Frame):
-    #def __init__(self, x_position, y_position):
-        #tk.Frame.__init__(self)
-    def __init__(self, container, x_position, y_position, agilis_comport):
-        #tk.Frame.__init__(self, container)
+    def __init__(self, container, x_position, y_position, agilis_comport, left_laser_ip=DEFAULT_LEFT_LASER_IP, right_laser_ip=DEFAULT_RIGHT_LASER_IP):
         super().__init__(container)
-
-        #Visual configuration
-        #self.geometry('1280x1000')
-        #self.title("High T: Acton-PIXIS 400")
 
         #Frame visual configuration
         self.configure(width=1280,height=1000)
@@ -381,6 +408,8 @@ class InitiatePiezoMotorControls(tk.Frame):
         self.y_position = y_position
         self.place(x = self.x_position, y = self.y_position)
         self.agilis_comport = agilis_comport
+        self.left_laser_ip = left_laser_ip
+        self.right_laser_ip = right_laser_ip
 
         #Setting some values for laser piezo motor communication
         #Each channel controls 2 Axis for X and Y
@@ -392,7 +421,7 @@ class InitiatePiezoMotorControls(tk.Frame):
         self.laser1_PiezoMotors = AgilisControlPanel(self, laser1_xy_channel, laser_focus_channel, 1, 20, 10, "left", self.agilis_comport)
         self.laser2_PiezoMotors = AgilisControlPanel(self, laser2_xy_channel, laser_focus_channel, 2, 260, 10, "right", self.agilis_comport)
 
-        RemoteControlButton = tk.Button(self, text="Remote Control", command=lambda: initiate_remote_control(self.laser1_PiezoMotors, self.laser2_PiezoMotors))
+        RemoteControlButton = tk.Button(self, text="Remote Control", command=lambda: initiate_remote_control(self.laser1_PiezoMotors, self.laser2_PiezoMotors, self.left_laser_ip, self.right_laser_ip))
         RemoteControlButton.place(x=150,y=520, height = 30, width = 200)
              
        
@@ -426,7 +455,10 @@ if __name__ == "__main__":
     laser1_PiezoMotors = AgilisControlPanel(window, laser1_xy_channel, laser_focus_channel, 1, 20, 10, "left")
     laser2_PiezoMotors = AgilisControlPanel(window, laser2_xy_channel, laser_focus_channel, 2, 260, 10, "right")
 
-    RemoteControlButton = tk.Button(window, text="Remote Control", command=lambda: initiate_remote_control(laser1_PiezoMotors, laser2_PiezoMotors))
+    left_laser_ip = DEFAULT_LEFT_LASER_IP
+    right_laser_ip = DEFAULT_RIGHT_LASER_IP
+
+    RemoteControlButton = tk.Button(window, text="Remote Control", command=lambda: initiate_remote_control(laser1_PiezoMotors, laser2_PiezoMotors, left_laser_ip, right_laser_ip))
     RemoteControlButton.place(x=150,y=530, height = 30, width = 200)
 
     window.mainloop()

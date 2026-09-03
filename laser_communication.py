@@ -6,29 +6,56 @@ import serial
 import comms_monitor
 import theme
 
+# Laser guide/aiming beam command strings (IPG protocol: ABN = Aiming Beam oN, ABF = Aiming Beam ofF)
+CMD_GUIDE_LASER_ON = "ABN"
+CMD_GUIDE_LASER_OFF = "ABF"
+
+DEFAULT_LEFT_LASER_IP = "192.168.1.100"
+DEFAULT_RIGHT_LASER_IP = "192.168.0.100"
+
+def laser_send_command(laser_ip, command_string):
+    # laser_ip = '192.168.0.100'
+    TCP_PORT = 10001
+    BUFFER_SIZE = 1024
+    CONNECT_TIMEOUT_SECONDS = 2
+
+    message = command_string + "\r"
+
+    try:
+        laser_ip_connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        laser_ip_connection.settimeout(CONNECT_TIMEOUT_SECONDS)
+        laser_ip_connection.connect((laser_ip, TCP_PORT))
+        laser_ip_connection.send(message.encode())
+        laser_response = laser_ip_connection.recv(BUFFER_SIZE).decode()
+        laser_ip_connection.close()
+
+        comms_monitor.log(f"Laser ({laser_ip})", command_string)
+        print(laser_response)
+        return laser_response
+    except OSError as connection_error:
+        comms_monitor.log(f"Laser ({laser_ip})", f"{command_string}  ({connection_error})", ok=False)
+        return None
+
+def guide_laser_left_on(laser_ip=DEFAULT_LEFT_LASER_IP):
+    """Turns ON the Left laser guide beam (ABN)."""
+    return laser_send_command(laser_ip, CMD_GUIDE_LASER_ON)
+
+def guide_laser_left_off(laser_ip=DEFAULT_LEFT_LASER_IP):
+    """Turns OFF the Left laser guide beam (ABF)."""
+    return laser_send_command(laser_ip, CMD_GUIDE_LASER_OFF)
+
+def guide_laser_right_on(laser_ip=DEFAULT_RIGHT_LASER_IP):
+    """Turns ON the Right laser guide beam (ABN)."""
+    return laser_send_command(laser_ip, CMD_GUIDE_LASER_ON)
+
+def guide_laser_right_off(laser_ip=DEFAULT_RIGHT_LASER_IP):
+    """Turns OFF the Right laser guide beam (ABF)."""
+    return laser_send_command(laser_ip, CMD_GUIDE_LASER_OFF)
+
 class LaserCommunication(tk.Frame):
 
     def laser_send_command(self, laser_ip, command_string):
-        # laser_ip = '192.168.0.100'
-        TCP_PORT = 10001
-        BUFFER_SIZE = 1024
-        CONNECT_TIMEOUT_SECONDS = 2
-
-        message = command_string + "\r"
-
-        try:
-            laser_ip_connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            laser_ip_connection.settimeout(CONNECT_TIMEOUT_SECONDS)
-            laser_ip_connection.connect((laser_ip, TCP_PORT))
-            laser_ip_connection.send(message.encode())
-            laser_response = laser_ip_connection.recv(1024).decode()
-            laser_ip_connection.close()
-
-            comms_monitor.log(f"Laser ({laser_ip})", command_string)
-            print(laser_response)
-            #laser_output_label_display.configure(text=laser_response)
-        except OSError as connection_error:
-            comms_monitor.log(f"Laser ({laser_ip})", f"{command_string}  ({connection_error})", ok=False)
+        return laser_send_command(laser_ip, command_string)
 
     def laser_send_command_RS232(self, com_port, command_string):
         # add a carriage return to the command

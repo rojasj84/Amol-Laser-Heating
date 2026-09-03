@@ -46,7 +46,7 @@ class Piezo_Controls(tk.Toplevel):
         tk.Toplevel.__init__(self)
         self.title("AGILIS Control Window")
         self.geometry("505x600")
-        self.PiezoControlClass = InitiatePiezoMotorControls(self,0,0,agilis_com_port)
+        self.PiezoControlClass = InitiatePiezoMotorControls(self, 0, 0, agilis_com_port, left_laser_ip, right_laser_ip)
         print(agilis_com_port)
         theme.apply_dark_titlebar(self)
 
