@@ -400,6 +400,8 @@ class InitiatePiezoMotorControls(tk.Frame):
     def __init__(self, container, x_position, y_position, agilis_comport, left_laser_ip=DEFAULT_LEFT_LASER_IP, right_laser_ip=DEFAULT_RIGHT_LASER_IP):
         super().__init__(container)
 
+        self.container = container
+
         #Frame visual configuration
         self.configure(width=1280,height=1000)
         
@@ -411,6 +413,9 @@ class InitiatePiezoMotorControls(tk.Frame):
         self.left_laser_ip = left_laser_ip
         self.right_laser_ip = right_laser_ip
 
+        # Track currently pressed key to handle press-and-hold vs release behaviors
+        self.pressedkey = None
+
         #Setting some values for laser piezo motor communication
         #Each channel controls 2 Axis for X and Y
         laser1_xy_channel = 1
@@ -421,9 +426,141 @@ class InitiatePiezoMotorControls(tk.Frame):
         self.laser1_PiezoMotors = AgilisControlPanel(self, laser1_xy_channel, laser_focus_channel, 1, 20, 10, "left", self.agilis_comport)
         self.laser2_PiezoMotors = AgilisControlPanel(self, laser2_xy_channel, laser_focus_channel, 2, 260, 10, "right", self.agilis_comport)
 
-        RemoteControlButton = tk.Button(self, text="Remote Control", command=lambda: initiate_remote_control(self.laser1_PiezoMotors, self.laser2_PiezoMotors, self.left_laser_ip, self.right_laser_ip))
-        RemoteControlButton.place(x=150,y=520, height = 30, width = 200)
-             
+        # Status indicator showing remote control is always active while this window is open
+        self.remote_status_label = tk.Label(
+            self,
+            bg=win_color,
+            text="Remote Control is ACTIVE",
+            fg='#4ec9b0',
+            font=('Agency FB', 14, 'bold')
+        )
+        self.remote_status_label.place(x=150, y=520, height=25, width=200)
+
+        # Bind keyboard events directly to the container window so remote control is always active
+        self.container.bind("<KeyPress>", self.keydown)
+        self.container.bind("<KeyRelease>", self.keyup)
+        self.container.bind("<Destroy>", self._on_destroy, add="+")
+        self.container.focus_set()
+
+    def guide_laser_left_on(self):
+        """Turn Left guide laser ON (ABN)"""
+        guide_laser_left_on(self.left_laser_ip)
+
+    def guide_laser_left_off(self):
+        """Turn Left guide laser OFF (ABF)"""
+        guide_laser_left_off(self.left_laser_ip)
+
+    def guide_laser_right_on(self):
+        """Turn Right guide laser ON (ABN)"""
+        guide_laser_right_on(self.right_laser_ip)
+
+    def guide_laser_right_off(self):
+        """Turn Right guide laser OFF (ABF)"""
+        guide_laser_right_off(self.right_laser_ip)
+
+    def _on_destroy(self, event=None):
+        if event is None or event.widget in (self, self.container):
+            try:
+                self.guide_laser_left_off()
+                self.guide_laser_right_off()
+            except Exception:
+                pass
+
+    # Hotkey setting for the release of a hotkey
+    def keyup(self, e):
+        laser1_PiezoMotors = self.laser1_PiezoMotors
+        laser2_PiezoMotors = self.laser2_PiezoMotors
+
+        #Laser 1 Hotkeys (Left Laser)
+        #Activating the laser axis translations
+        if e.char == "a":
+            laser1_PiezoMotors.Laser_Jog_Left.Stop_Piezo_Travel(laser1_PiezoMotors.Laser_Jog_Left.channel, laser1_PiezoMotors.Laser_Jog_Left.axis)
+        if e.char == "d":
+            laser1_PiezoMotors.Laser_Jog_Right.Stop_Piezo_Travel(laser1_PiezoMotors.Laser_Jog_Right.channel, laser1_PiezoMotors.Laser_Jog_Right.axis)
+        if e.char == "w":
+            laser1_PiezoMotors.Laser_Jog_Up.Stop_Piezo_Travel(laser1_PiezoMotors.Laser_Jog_Up.channel, laser1_PiezoMotors.Laser_Jog_Up.axis)
+        if e.char == "s":
+            laser1_PiezoMotors.Laser_Jog_Down.Stop_Piezo_Travel(laser1_PiezoMotors.Laser_Jog_Down.channel, laser1_PiezoMotors.Laser_Jog_Down.axis)
+        if e.char == "q":
+            laser1_PiezoMotors.laser_left_focus.Stop_Piezo_Travel(laser1_PiezoMotors.laser_left_focus.channel, laser1_PiezoMotors.laser_left_focus.axis)
+        if e.char == "e":
+            laser1_PiezoMotors.laser_right_focus.Stop_Piezo_Travel(laser1_PiezoMotors.laser_right_focus.channel, laser1_PiezoMotors.laser_right_focus.axis)
+        if e.char == "3":
+            # Fire Left guide laser off
+            self.guide_laser_left_off()
+
+        #Laser 2 Hotkeys (Right Laser)
+        #Activating the laser axis translations
+        if e.char == "j":
+            laser2_PiezoMotors.Laser_Jog_Left.Stop_Piezo_Travel(laser2_PiezoMotors.Laser_Jog_Left.channel, laser2_PiezoMotors.Laser_Jog_Left.axis)
+        if e.char == "l":
+            laser2_PiezoMotors.Laser_Jog_Right.Stop_Piezo_Travel(laser2_PiezoMotors.Laser_Jog_Right.channel, laser2_PiezoMotors.Laser_Jog_Right.axis)
+        if e.char == "i":
+            laser2_PiezoMotors.Laser_Jog_Up.Stop_Piezo_Travel(laser2_PiezoMotors.Laser_Jog_Up.channel, laser2_PiezoMotors.Laser_Jog_Up.axis)
+        if e.char == "k":
+            laser2_PiezoMotors.Laser_Jog_Down.Stop_Piezo_Travel(laser2_PiezoMotors.Laser_Jog_Down.channel, laser2_PiezoMotors.Laser_Jog_Down.axis)
+        if e.char == "u":
+            laser2_PiezoMotors.laser_left_focus.Stop_Piezo_Travel(laser2_PiezoMotors.laser_left_focus.channel, laser2_PiezoMotors.laser_left_focus.axis)
+        if e.char == "o":
+            laser2_PiezoMotors.laser_right_focus.Stop_Piezo_Travel(laser2_PiezoMotors.laser_right_focus.channel, laser2_PiezoMotors.laser_right_focus.axis)
+        if e.char == "0":
+            # Fire Right guide laser off
+            self.guide_laser_right_off()
+
+        self.pressedkey = None
+
+    # Hotkey setting for holding down a hotkey
+    def keydown(self, e):
+        laser1_PiezoMotors = self.laser1_PiezoMotors
+        laser2_PiezoMotors = self.laser2_PiezoMotors
+
+        if e.char != self.pressedkey:
+            self.pressedkey = e.char
+            #Laser 1 Hotkeys (Left Laser)
+            #Activating the laser axis translations
+            if e.char == "a":
+                laser1_PiezoMotors.Laser_Jog_Left.Start_Piezo_Travel(laser1_PiezoMotors.Laser_Jog_Left.channel, laser1_PiezoMotors.Laser_Jog_Left.axis, laser1_PiezoMotors.Laser_Jog_Left.direction*laser1_PiezoMotors.jog_speed_local)
+            if e.char == "d":
+                laser1_PiezoMotors.Laser_Jog_Right.Start_Piezo_Travel(laser1_PiezoMotors.Laser_Jog_Right.channel, laser1_PiezoMotors.Laser_Jog_Right.axis, laser1_PiezoMotors.Laser_Jog_Right.direction*laser1_PiezoMotors.jog_speed_local)
+            if e.char == "w":
+                laser1_PiezoMotors.Laser_Jog_Up.Start_Piezo_Travel(laser1_PiezoMotors.Laser_Jog_Up.channel, laser1_PiezoMotors.Laser_Jog_Up.axis, laser1_PiezoMotors.Laser_Jog_Up.direction*laser1_PiezoMotors.jog_speed_local)
+            if e.char == "s":
+                laser1_PiezoMotors.Laser_Jog_Down.Start_Piezo_Travel(laser1_PiezoMotors.Laser_Jog_Down.channel, laser1_PiezoMotors.Laser_Jog_Down.axis, laser1_PiezoMotors.Laser_Jog_Down.direction*laser1_PiezoMotors.jog_speed_local)
+            if e.char == "q":
+                laser1_PiezoMotors.laser_left_focus.Start_Piezo_Travel(laser1_PiezoMotors.laser_left_focus.channel, laser1_PiezoMotors.laser_left_focus.axis, laser1_PiezoMotors.laser_left_focus.direction*laser1_PiezoMotors.jog_speed_local)
+            if e.char == "e":
+                laser1_PiezoMotors.laser_right_focus.Start_Piezo_Travel(laser1_PiezoMotors.laser_right_focus.channel, laser1_PiezoMotors.laser_right_focus.axis, laser1_PiezoMotors.laser_right_focus.direction*laser1_PiezoMotors.jog_speed_local)
+            if e.char == "3":
+                # Fire Left guide laser on
+                self.guide_laser_left_on()
+
+            #Laser 2 Hotkeys (Right Laser)
+            #Activating the laser axis translations
+            if e.char == "j":
+                laser2_PiezoMotors.Laser_Jog_Left.Start_Piezo_Travel(laser2_PiezoMotors.Laser_Jog_Left.channel, laser2_PiezoMotors.Laser_Jog_Left.axis, laser2_PiezoMotors.Laser_Jog_Left.direction*laser2_PiezoMotors.jog_speed_local)
+            if e.char == "l":
+                laser2_PiezoMotors.Laser_Jog_Right.Start_Piezo_Travel(laser2_PiezoMotors.Laser_Jog_Right.channel, laser2_PiezoMotors.Laser_Jog_Right.axis, laser2_PiezoMotors.Laser_Jog_Right.direction*laser2_PiezoMotors.jog_speed_local)
+            if e.char == "i":
+                laser2_PiezoMotors.Laser_Jog_Up.Start_Piezo_Travel(laser2_PiezoMotors.Laser_Jog_Up.channel, laser2_PiezoMotors.Laser_Jog_Up.axis, laser2_PiezoMotors.Laser_Jog_Up.direction*laser2_PiezoMotors.jog_speed_local)
+            if e.char == "k":
+                laser2_PiezoMotors.Laser_Jog_Down.Start_Piezo_Travel(laser2_PiezoMotors.Laser_Jog_Down.channel, laser2_PiezoMotors.Laser_Jog_Down.axis, laser2_PiezoMotors.Laser_Jog_Down.direction*laser2_PiezoMotors.jog_speed_local)
+            if e.char == "u":
+                laser2_PiezoMotors.laser_left_focus.Start_Piezo_Travel(laser2_PiezoMotors.laser_left_focus.channel, laser2_PiezoMotors.laser_left_focus.axis, laser2_PiezoMotors.laser_left_focus.direction*laser2_PiezoMotors.jog_speed_local)
+            if e.char == "o":
+                laser2_PiezoMotors.laser_right_focus.Start_Piezo_Travel(laser2_PiezoMotors.laser_right_focus.channel, laser2_PiezoMotors.laser_right_focus.axis, laser2_PiezoMotors.laser_right_focus.direction*laser2_PiezoMotors.jog_speed_local)
+            if e.char == "0":
+                # Fire Right guide laser on
+                self.guide_laser_right_on()
+
+            # Changing the speed settings for lasers 1 and 2
+            if e.char == "1":
+                laser1_PiezoMotors.change_jog_speed_local("-")
+            if e.char == "2":
+                laser1_PiezoMotors.change_jog_speed_local("+")
+            if e.char == "8":
+                laser2_PiezoMotors.change_jog_speed_local("-")
+            if e.char == "9":
+                laser2_PiezoMotors.change_jog_speed_local("+")
        
 if __name__ == "__main__":
 
@@ -438,27 +575,16 @@ if __name__ == "__main__":
     # Begin code with window code
     window = tk.Tk()
     window.title("EPL Laser Heating Control")
-    window.geometry("500x580")
+    window.geometry("505x580")
     window.configure(bg=win_color)
 
     ico = Image.open("images/laser-icon.png")
     photo = ImageTk.PhotoImage(ico)
     window.wm_iconphoto(False, photo)
 
-    #Setting some values for laser piezo motor communication
-    #Each channel controls 2 Axis for X and Y
-    laser1_xy_channel = 1
-    laser2_xy_channel = 2
-    laser_focus_channel = 3 #Both focus motors are in the same channel, laser 1 on 1 and laser 2 on 2
-
-    #Calling classes for the control buttons of laser 1 and 2
-    laser1_PiezoMotors = AgilisControlPanel(window, laser1_xy_channel, laser_focus_channel, 1, 20, 10, "left")
-    laser2_PiezoMotors = AgilisControlPanel(window, laser2_xy_channel, laser_focus_channel, 2, 260, 10, "right")
-
     left_laser_ip = DEFAULT_LEFT_LASER_IP
     right_laser_ip = DEFAULT_RIGHT_LASER_IP
 
-    RemoteControlButton = tk.Button(window, text="Remote Control", command=lambda: initiate_remote_control(laser1_PiezoMotors, laser2_PiezoMotors, left_laser_ip, right_laser_ip))
-    RemoteControlButton.place(x=150,y=530, height = 30, width = 200)
+    piezo_controls = InitiatePiezoMotorControls(window, 0, 0, "COM11", left_laser_ip, right_laser_ip)
 
     window.mainloop()
