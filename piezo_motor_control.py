@@ -264,6 +264,10 @@ class RemoteControlWindow(tk.Toplevel):
         # interphase for the main gui
         self.pressedkey = None
 
+        # Track persistent toggle state for guide lasers
+        self.left_guide_laser_state = False
+        self.right_guide_laser_state = False
+
         RemoteContorLabel = tk.Label(self, bg=win_color, text = "Laser Remote Control is ACTIVE", fg='red', font=('Agency FB', 14, 'bold'))
         RemoteContorLabel.place(relx=0.5,rely=0.2,anchor=tk.CENTER)
 
@@ -290,10 +294,32 @@ class RemoteControlWindow(tk.Toplevel):
         """Turn Right guide laser OFF (ABF)"""
         guide_laser_right_off(self.right_laser_ip)
 
+    def toggle_guide_laser_left(self):
+        """Toggle Left guide laser persistently ON or OFF"""
+        if self.left_guide_laser_state:
+            self.guide_laser_left_off()
+            self.left_guide_laser_state = False
+        else:
+            self.guide_laser_left_on()
+            self.left_guide_laser_state = True
+
+    def toggle_guide_laser_right(self):
+        """Toggle Right guide laser persistently ON or OFF"""
+        if self.right_guide_laser_state:
+            self.guide_laser_right_off()
+            self.right_guide_laser_state = False
+        else:
+            self.guide_laser_right_on()
+            self.right_guide_laser_state = True
+
     def destroy(self):
         try:
-            self.guide_laser_left_off()
-            self.guide_laser_right_off()
+            if self.left_guide_laser_state:
+                self.guide_laser_left_off()
+                self.left_guide_laser_state = False
+            if self.right_guide_laser_state:
+                self.guide_laser_right_off()
+                self.right_guide_laser_state = False
         except Exception:
             pass
         super().destroy()
@@ -317,9 +343,6 @@ class RemoteControlWindow(tk.Toplevel):
             laser1_PiezoMotors.laser_left_focus.Stop_Piezo_Travel(laser1_PiezoMotors.laser_left_focus.channel, laser1_PiezoMotors.laser_left_focus.axis)
         if e.char == "e":
             laser1_PiezoMotors.laser_right_focus.Stop_Piezo_Travel(laser1_PiezoMotors.laser_right_focus.channel, laser1_PiezoMotors.laser_right_focus.axis)
-        if e.char == "3":
-            # Fire Left guide laser off
-            self.guide_laser_left_off()
 
         #Laser 2 Hotkeys (Right Laser)
         #Activating the laser axis translations
@@ -335,9 +358,6 @@ class RemoteControlWindow(tk.Toplevel):
             laser2_PiezoMotors.laser_left_focus.Stop_Piezo_Travel(laser2_PiezoMotors.laser_left_focus.channel, laser2_PiezoMotors.laser_left_focus.axis)
         if e.char == "o":
             laser2_PiezoMotors.laser_right_focus.Stop_Piezo_Travel(laser2_PiezoMotors.laser_right_focus.channel, laser2_PiezoMotors.laser_right_focus.axis)
-        if e.char == "0":
-            # Fire Right guide laser off
-            self.guide_laser_right_off()
 
         self.pressedkey = None
 
@@ -364,8 +384,8 @@ class RemoteControlWindow(tk.Toplevel):
             if e.char == "e":
                 laser1_PiezoMotors.laser_right_focus.Start_Piezo_Travel(laser1_PiezoMotors.laser_right_focus.channel, laser1_PiezoMotors.laser_right_focus.axis, laser1_PiezoMotors.laser_right_focus.direction*laser1_PiezoMotors.jog_speed_local)
             if e.char == "3":
-                # Fire Left guide laser on
-                self.guide_laser_left_on()
+                # Toggle Left guide laser on/off
+                self.toggle_guide_laser_left()
 
             #Laser 2 Hotkeys (Right Laser)
             #Activating the laser axis translations
@@ -383,8 +403,8 @@ class RemoteControlWindow(tk.Toplevel):
             if e.char == "o":
                 laser2_PiezoMotors.laser_right_focus.Start_Piezo_Travel(laser2_PiezoMotors.laser_right_focus.channel, laser2_PiezoMotors.laser_right_focus.axis, laser2_PiezoMotors.laser_right_focus.direction*laser2_PiezoMotors.jog_speed_local)
             if e.char == "0":
-                # Fire Right guide laser on
-                self.guide_laser_right_on()
+                # Toggle Right guide laser on/off
+                self.toggle_guide_laser_right()
 
             # Changing the speed settings for lasers 1 and 2
             if e.char == "1":
@@ -416,6 +436,10 @@ class InitiatePiezoMotorControls(tk.Frame):
         # Track currently pressed key to handle press-and-hold vs release behaviors
         self.pressedkey = None
 
+        # Track persistent toggle state for guide lasers
+        self.left_guide_laser_state = False
+        self.right_guide_laser_state = False
+
         #Setting some values for laser piezo motor communication
         #Each channel controls 2 Axis for X and Y
         laser1_xy_channel = 1
@@ -434,13 +458,31 @@ class InitiatePiezoMotorControls(tk.Frame):
             fg='#4ec9b0',
             font=('Agency FB', 14, 'bold')
         )
-        self.remote_status_label.place(x=150, y=520, height=25, width=200)
+        self.remote_status_label.place(x=150, y=515, height=25, width=200)
+
+        self.guide_status_label = tk.Label(
+            self,
+            bg=win_color,
+            text="Guide Lasers: Left [OFF]  |  Right [OFF]  (Press 3 / 0)",
+            fg=theme.FG_MUTED,
+            font=('Segoe UI', 9)
+        )
+        self.guide_status_label.place(x=50, y=542, height=20, width=400)
 
         # Bind keyboard events directly to the container window so remote control is always active
         self.container.bind("<KeyPress>", self.keydown)
         self.container.bind("<KeyRelease>", self.keyup)
         self.container.bind("<Destroy>", self._on_destroy, add="+")
         self.container.focus_set()
+
+    def _update_guide_status_display(self):
+        left_txt = "ON" if self.left_guide_laser_state else "OFF"
+        right_txt = "ON" if self.right_guide_laser_state else "OFF"
+        is_any_on = self.left_guide_laser_state or self.right_guide_laser_state
+        self.guide_status_label.configure(
+            text=f"Guide Lasers: Left [{left_txt}]  |  Right [{right_txt}]  (Press 3 / 0)",
+            fg="#ff6b6b" if is_any_on else theme.FG_MUTED
+        )
 
     def guide_laser_left_on(self):
         """Turn Left guide laser ON (ABN)"""
@@ -458,11 +500,35 @@ class InitiatePiezoMotorControls(tk.Frame):
         """Turn Right guide laser OFF (ABF)"""
         guide_laser_right_off(self.right_laser_ip)
 
+    def toggle_guide_laser_left(self):
+        """Toggle Left guide laser persistently ON or OFF"""
+        if self.left_guide_laser_state:
+            self.guide_laser_left_off()
+            self.left_guide_laser_state = False
+        else:
+            self.guide_laser_left_on()
+            self.left_guide_laser_state = True
+        self._update_guide_status_display()
+
+    def toggle_guide_laser_right(self):
+        """Toggle Right guide laser persistently ON or OFF"""
+        if self.right_guide_laser_state:
+            self.guide_laser_right_off()
+            self.right_guide_laser_state = False
+        else:
+            self.guide_laser_right_on()
+            self.right_guide_laser_state = True
+        self._update_guide_status_display()
+
     def _on_destroy(self, event=None):
         if event is None or event.widget in (self, self.container):
             try:
-                self.guide_laser_left_off()
-                self.guide_laser_right_off()
+                if self.left_guide_laser_state:
+                    self.guide_laser_left_off()
+                    self.left_guide_laser_state = False
+                if self.right_guide_laser_state:
+                    self.guide_laser_right_off()
+                    self.right_guide_laser_state = False
             except Exception:
                 pass
 
@@ -485,9 +551,6 @@ class InitiatePiezoMotorControls(tk.Frame):
             laser1_PiezoMotors.laser_left_focus.Stop_Piezo_Travel(laser1_PiezoMotors.laser_left_focus.channel, laser1_PiezoMotors.laser_left_focus.axis)
         if e.char == "e":
             laser1_PiezoMotors.laser_right_focus.Stop_Piezo_Travel(laser1_PiezoMotors.laser_right_focus.channel, laser1_PiezoMotors.laser_right_focus.axis)
-        if e.char == "3":
-            # Fire Left guide laser off
-            self.guide_laser_left_off()
 
         #Laser 2 Hotkeys (Right Laser)
         #Activating the laser axis translations
@@ -503,9 +566,6 @@ class InitiatePiezoMotorControls(tk.Frame):
             laser2_PiezoMotors.laser_left_focus.Stop_Piezo_Travel(laser2_PiezoMotors.laser_left_focus.channel, laser2_PiezoMotors.laser_left_focus.axis)
         if e.char == "o":
             laser2_PiezoMotors.laser_right_focus.Stop_Piezo_Travel(laser2_PiezoMotors.laser_right_focus.channel, laser2_PiezoMotors.laser_right_focus.axis)
-        if e.char == "0":
-            # Fire Right guide laser off
-            self.guide_laser_right_off()
 
         self.pressedkey = None
 
@@ -531,8 +591,8 @@ class InitiatePiezoMotorControls(tk.Frame):
             if e.char == "e":
                 laser1_PiezoMotors.laser_right_focus.Start_Piezo_Travel(laser1_PiezoMotors.laser_right_focus.channel, laser1_PiezoMotors.laser_right_focus.axis, laser1_PiezoMotors.laser_right_focus.direction*laser1_PiezoMotors.jog_speed_local)
             if e.char == "3":
-                # Fire Left guide laser on
-                self.guide_laser_left_on()
+                # Toggle Left guide laser on/off
+                self.toggle_guide_laser_left()
 
             #Laser 2 Hotkeys (Right Laser)
             #Activating the laser axis translations
@@ -549,8 +609,8 @@ class InitiatePiezoMotorControls(tk.Frame):
             if e.char == "o":
                 laser2_PiezoMotors.laser_right_focus.Start_Piezo_Travel(laser2_PiezoMotors.laser_right_focus.channel, laser2_PiezoMotors.laser_right_focus.axis, laser2_PiezoMotors.laser_right_focus.direction*laser2_PiezoMotors.jog_speed_local)
             if e.char == "0":
-                # Fire Right guide laser on
-                self.guide_laser_right_on()
+                # Toggle Right guide laser on/off
+                self.toggle_guide_laser_right()
 
             # Changing the speed settings for lasers 1 and 2
             if e.char == "1":
