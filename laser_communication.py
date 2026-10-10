@@ -4,6 +4,7 @@ import time
 import serial
 
 import comms_monitor
+import hardware_mode
 import theme
 
 # Laser guide/aiming beam command strings (IPG protocol: ABN = Aiming Beam oN, ABF = Aiming Beam ofF)
@@ -14,6 +15,9 @@ DEFAULT_LEFT_LASER_IP = "192.168.1.100"
 DEFAULT_RIGHT_LASER_IP = "192.168.0.100"
 
 def laser_send_command(laser_ip, command_string):
+    if hardware_mode.simulate_command(f"Laser ({laser_ip})", command_string):
+        return command_string + "\r"
+
     # laser_ip = '192.168.0.100'
     TCP_PORT = 10001
     BUFFER_SIZE = 1024
@@ -58,6 +62,9 @@ class LaserCommunication(tk.Frame):
         return laser_send_command(laser_ip, command_string)
 
     def laser_send_command_RS232(self, com_port, command_string):
+        if hardware_mode.simulate_command(f"Laser ({com_port})", command_string):
+            return
+
         # add a carriage return to the command
         message = command_string + "\r"
 

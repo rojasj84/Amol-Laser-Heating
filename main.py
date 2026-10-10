@@ -1,4 +1,8 @@
 # Importing python libraries
+import argparse
+import os
+from pathlib import Path
+import hardware_mode
 import tkinter as tk
 import serial.tools.list_ports
 from PIL import ImageTk, Image
@@ -110,6 +114,9 @@ class ComPort_Controls(tk.Toplevel):
         theme.apply_dark_titlebar(self)
 
     def get_com_ports(self):
+        if hardware_mode.is_debug():
+            return list(dict.fromkeys((agilis_com_port, left_denkovi_com_port, right_denkovi_com_port)))
+
         ports = [port.device for port in serial.tools.list_ports.comports()]
         return ports
     
@@ -172,12 +179,23 @@ def open_window(window_value, window_in_question):
     
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="EPL Laser Heating Control")
+    parser.add_argument("--debug", action="store_true",
+                        help="Run offline: simulate instrument commands without opening serial ports or laser connections.")
+    args = parser.parse_args()
+    hardware_mode.configure(debug=args.debug)
+    # Images and bundled calibration files are relative to the application folder.
+    os.chdir(Path(__file__).resolve().parent)
+
 
     #***** Building USER GUI *****
 
     # Begin code with window code
     window = tk.Tk()
-    window.title("EPL Laser Heating Control")
+    title = "EPL Laser Heating Control"
+    if hardware_mode.is_debug():
+        title += " [DEBUG - instruments simulated]"
+    window.title(title)
 
     # Apply the dark theme before building any content, so every widget created from
     # here on (in this window and every Toplevel opened later) picks up the theme.
@@ -220,6 +238,10 @@ if __name__ == "__main__":
                         activebackground=theme.SELECT_BG, activeforeground=theme.FG)
         button.configure(menu=menu)
         return menu
+
+    if hardware_mode.is_debug():
+        tk.Label(menu_bar_frame, text="DEBUG: instruments simulated", fg="#FFB74D",
+                 bg=theme.PANEL_BG, padx=10).pack(side="right", fill="y")
 
     file_menu = add_menu("Main")
     file_menu.add_command(label="Exit", command=window.quit)

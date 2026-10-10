@@ -1,5 +1,52 @@
 import csv
+import re
+from pathlib import Path
 import numpy as np
+
+
+# Resolve only files for this calibration session and the requested optical state.
+CALIBRATION_ROOT = Path(__file__).resolve().parent / "TemperatureFit" / "T_Calib_20250314"
+
+
+def resolve_calibration_file(calib_name, base_dir=None):
+    """Return an existing processed SPE file, or None for unavailable states.
+
+    Known spelling and exposure suffixes may vary; side, magnification, iris,
+    and filter combination must match. Equally ranked files are ambiguous.
+    """
+    if not calib_name or not str(calib_name).strip():
+        return None
+    name = str(calib_name).strip()
+    stem = name[:-4] if name.lower().endswith(".spe") else name
+    state = re.fullmatch(r"([LR])_\d+K_(15x|20x)_(wI|woI)(?:_T\d+(?:T\d+)*)?", stem)
+    if state is None:
+        return None
+    side, magnification = state.group(1, 2)
+    root = Path(base_dir) if base_dir is not None else CALIBRATION_ROOT
+    mag_folder = root / f"{magnification}Mag"
+    preferred_folder = mag_folder / f"{magnification}{side}"
+
+    def normalize(value):
+        return value.replace("_T7050", "_T70T50").replace("_T7010", "_T70T10")
+
+    candidates = []
+    for candidate in mag_folder.rglob("*"):
+        if not candidate.is_file() or candidate.suffix.lower() != ".spe":
+            continue
+        # A raw companion or a different filter combination never substitutes
+        # for a missing processed calibration.
+        file_stem = re.sub(r"_\d+(?:\.\d+)?(?:ms|s)$", "", candidate.stem)
+        if normalize(file_stem) != normalize(stem):
+            continue
+        rank = (candidate.stem != file_stem,
+                candidate.parent != preferred_folder,
+                file_stem != stem)
+        candidates.append((rank, candidate))
+    if not candidates:
+        return None
+    best_rank = min(rank for rank, _ in candidates)
+    best = [candidate for rank, candidate in candidates if rank == best_rank]
+    return best[0].resolve() if len(best) == 1 else None
 
 class FestoStateCalibrationsCheck:
     def __init__(self, csv_file_location):
@@ -28,7 +75,8 @@ class FestoStateCalibrationsCheck:
             #print(are_rows_same)
             if are_rows_same == True:
                 #print(are_rows_same, i)
-                return self.calibration_file_name[i]
+                name = str(self.calibration_file_name[i, 0]).strip()
+                return np.array([name]) if name else None
         
 
 if __name__ == "__main__":

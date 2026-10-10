@@ -116,14 +116,14 @@ class CalibrationFileSelection(tk.Frame):
         return Path(left_path_str).is_file() and Path(right_path_str).is_file()
 
     def update_left_calibration_file(self, file_path):
-        file_path = Path(file_path).absolute()
+        file_path = str(Path(file_path).resolve()) if file_path else ""
         self.left_file_location.config(state="normal")
         self.left_file_location.delete("1.0", tk.END)
         self.left_file_location.insert(tk.END, str(file_path))
         self.left_file_location.config(state="disabled")
 
     def update_right_calibration_file(self, file_path):
-        file_path = Path(file_path).absolute()
+        file_path = str(Path(file_path).resolve()) if file_path else ""
         self.right_file_location.config(state="normal")
         self.right_file_location.delete("1.0", tk.END)
         self.right_file_location.insert(tk.END, str(file_path))
@@ -136,7 +136,10 @@ class CalibrationFileSelection(tk.Frame):
             if file_location_number == 1:
                 self.update_left_calibration_file(open_file_path)
             elif file_location_number == 2:
-                self.update_right_calibration_file(open_file_path)        
+                self.update_right_calibration_file(open_file_path)
+            left_path = self.left_file_location.get("1.0", tk.END).strip()
+            right_path = self.right_file_location.get("1.0", tk.END).strip()
+            self.update_status(Path(left_path).is_file(), Path(right_path).is_file())
     
 class TransmissionFilterSelection(tk.Frame):
     def __init__(self, container, x_position, y_position, left_denkovi_com_port, right_denkovi_com_port, calibration_file_select=None):
@@ -165,7 +168,7 @@ class TransmissionFilterSelection(tk.Frame):
         # Filter Determination Raio Buttons for the Left Side
         
         self.filter_variable_left = tk.IntVar()
-        self.iris_variable_left = tk.IntVar()
+        self.iris_variable_left = tk.IntVar(value=1)
         self.magnification_variable_left = tk.IntVar()        
 
         self.left_no_filter_selection = tk.Radiobutton(self,text="NO FILTER", font=('Helvetica', 10), indicatoron = 0, variable = self.filter_variable_left, value = 0b000, selectcolor=theme.LEFT_ACCENT, background=theme.LEFT_ACCENT, command=self.UpdateFestoStates) #Value corresponds to the binary state of 000 for all 3 NDFs
@@ -249,50 +252,13 @@ class TransmissionFilterSelection(tk.Frame):
         self.right_magnification_selection_20.place(x = 930-90-30, y = 160, width=90, height=50)
 
         #self.CalibrationChecking = calib_find.FestoStateCalibrationsCheck("TemperatureFit\calibration_file_table.csv")
-        self.RightCalibrationChecking = calib_find.FestoStateCalibrationsCheck(r"TemperatureFit\calibration_file_table_right_side.csv")
-        self.LeftCalibrationChecking = calib_find.FestoStateCalibrationsCheck(r"TemperatureFit\calibration_file_table_left_side.csv")
+        self.RightCalibrationChecking = calib_find.FestoStateCalibrationsCheck(Path(__file__).resolve().parent / "TemperatureFit" / "calibration_file_table_right_side.csv")
+        self.LeftCalibrationChecking = calib_find.FestoStateCalibrationsCheck(Path(__file__).resolve().parent / "TemperatureFit" / "calibration_file_table_left_side.csv")
 
         self.UpdateFestoStates()
 
     def resolve_calibration_file_path(self, calib_name):
-        if not calib_name:
-            return None
-        base_dir = Path("TemperatureFit")
-        target_name = f"{calib_name}.spe" if not str(calib_name).endswith(".spe") else str(calib_name)
-        
-        # 1. Exact glob match anywhere under TemperatureFit
-        matches = list(base_dir.glob(f"**/{target_name}"))
-        if matches:
-            return matches[0].absolute()
-        
-        # 2. Handle known filename variations on disk (T7050 vs T70T50, T70T10 vs T7010)
-        variations = []
-        if "T7050" in target_name:
-            variations.append(target_name.replace("T7050", "T70T50"))
-        if "T70T10" in target_name:
-            variations.append(target_name.replace("T70T10", "T7010"))
-        
-        for var in variations:
-            m = list(base_dir.glob(f"**/{var}"))
-            if m:
-                return m[0].absolute()
-
-        # 3. Check for exposure suffix variants (e.g. woI -> woI_300ms, woI_200ms)
-        stem = target_name[:-4] if target_name.endswith(".spe") else target_name
-        woi_matches = list(base_dir.glob(f"**/{stem}*.spe"))
-        if woi_matches:
-            return woi_matches[0].absolute()
-
-        # 4. If file is missing on disk, construct the expected calibration subfolder path
-        side = "L" if stem.startswith("L_") else ("R" if stem.startswith("R_") else "")
-        mag = "15x" if "15x" in stem else ("20x" if "20x" in stem else "")
-        if mag and side:
-            mag_folder = f"{mag}Mag"
-            side_folder = f"{mag}{side}"
-            expected = base_dir / "T_Calib_20250314" / mag_folder / side_folder / target_name
-            return expected.absolute()
-
-        return (base_dir / target_name).absolute()
+        return calib_find.resolve_calibration_file(calib_name)
 
     def UpdateFestoStates(self):
 
@@ -331,28 +297,16 @@ class TransmissionFilterSelection(tk.Frame):
         left_calib_result = self.LeftCalibrationChecking.compare_rows_return_calibration_file(left_side_states)
         right_calib_result = self.RightCalibrationChecking.compare_rows_return_calibration_file(right_side_states)
 
-        print(left_calib_result)
-        print(right_calib_result)
-
-        left_exists = False
-        right_exists = False
-
-        if left_calib_result is not None:
-            left_filename = left_calib_result[0] if isinstance(left_calib_result, (list, np.ndarray)) else str(left_calib_result)
-            left_path = self.resolve_calibration_file_path(left_filename)
-            left_exists = left_path.is_file() if left_path else False
-            if left_path and self.calibration_file_select:
-                self.calibration_file_select.update_left_calibration_file(left_path)
-
-        if right_calib_result is not None:
-            right_filename = right_calib_result[0] if isinstance(right_calib_result, (list, np.ndarray)) else str(right_calib_result)
-            right_path = self.resolve_calibration_file_path(right_filename)
-            right_exists = right_path.is_file() if right_path else False
-            if right_path and self.calibration_file_select:
-                self.calibration_file_select.update_right_calibration_file(right_path)
+        left_filename = left_calib_result[0] if left_calib_result is not None else None
+        right_filename = right_calib_result[0] if right_calib_result is not None else None
+        left_path = self.resolve_calibration_file_path(left_filename)
+        right_path = self.resolve_calibration_file_path(right_filename)
 
         if self.calibration_file_select:
-            self.calibration_file_select.update_status(left_exists, right_exists)
+            # Always update both fields, including clearing an unavailable state.
+            self.calibration_file_select.update_left_calibration_file(left_path)
+            self.calibration_file_select.update_right_calibration_file(right_path)
+            self.calibration_file_select.update_status(left_path is not None, right_path is not None)
 
 
 class PlotGraphs(tk.Frame):

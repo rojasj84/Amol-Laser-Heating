@@ -1,6 +1,10 @@
 import serial
 
 import comms_monitor
+import hardware_mode
+
+# Debug relay state is independent for each board and lasts for this process.
+_debug_relay_states = {}
 
 # Function for sending 2 bytes to alter the state of multiple relays at once
 def send_relay_bytes(port, byte1, byte2):
@@ -13,6 +17,10 @@ def send_relay_bytes(port, byte1, byte2):
     packet[0] = byte1
     packet[1] = byte2
     message = b'x' + packet + b'//'
+
+    if hardware_mode.simulate_command(f"Denkovi relay board ({port})", message):
+        _debug_relay_states[port] = [int(bit) for bit in f"{byte1:08b}{byte2:08b}"]
+        return
 
     try:
         ser = serial.Serial(port,
@@ -31,6 +39,9 @@ def send_relay_bytes(port, byte1, byte2):
 # Function to read in the two bytes for the state of the 16 relays
 # 'ask//' is sent and two bytes are sent back
 def read_denkovi_status(port):
+    if hardware_mode.simulate_command(f"Denkovi relay board ({port})", b'ask//'):
+        return list(_debug_relay_states.get(port, [0] * 16))
+
     try:
         ser = serial.Serial(port,
                             9600,

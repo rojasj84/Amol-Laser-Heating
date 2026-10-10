@@ -3,6 +3,7 @@ import time
 # Library with functions to talk with the agilis piezo motion controller
 
 import comms_monitor
+import hardware_mode
 
 #Set comport for agilis
 COMPORT = 'COM10'
@@ -16,6 +17,9 @@ def piezo_move_relative(comport,channel,axis,direction,steps):
         command_string = command_string + "-" + str(steps)
     else:
         command_string = command_string + str(steps)
+
+    if hardware_mode.simulate_command(f"AGILIS piezo controller ({comport})", f"CC{channel} / {command_string}"):
+        return
 
     try:
         ser = serial.Serial(comport,
@@ -37,6 +41,9 @@ def piezo_jog_at_speed(comport,channel,axis,speed):
     command_string = str(axis) + "JA"
     command_string = command_string + str(speed)
     #print(command_string)
+    if hardware_mode.simulate_command(f"AGILIS piezo controller ({comport})", f"CC{channel} / {command_string}"):
+        return
+
     try:
         ser = serial.Serial(comport,
                             921600,
@@ -61,6 +68,9 @@ def piezo_stop(comport,channel,axis):
 
     command_string = str(axis) + "ST"
     #print(command_string)
+    if hardware_mode.simulate_command(f"AGILIS piezo controller ({comport})", f"CC{channel} / {command_string}"):
+        return
+
     try:
         ser = serial.Serial(comport,
                             921600,
@@ -86,6 +96,9 @@ def piezo_set_remote_mode():
 
     command_string = "MR"
     #print(command_string)
+    if hardware_mode.simulate_command(f"AGILIS piezo controller ({COMPORT})", command_string):
+        return
+
     try:
         ser = serial.Serial(COMPORT,
                             921600,
