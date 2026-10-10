@@ -59,10 +59,11 @@ class SpeFile(object):
         """"""
         self.filename = filename
         self.debug = debug
-        self._fid = open(filename, 'rb')
-        self._read_parameter()
-        self._read_img()
-        self._fid.close()
+        # A partially written file can fail during either read. Always release
+        # the handle so acquisition software can finish or replace the file.
+        with open(filename, 'rb') as self._fid:
+            self._read_parameter()
+            self._read_img()
 
     def _read_parameter(self):
         """Reads in size and datatype. Decides whether it should check in the binary

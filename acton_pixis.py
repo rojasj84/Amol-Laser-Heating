@@ -2,6 +2,7 @@ import tkinter as tk
 import numpy as np
 import sys
 import queue
+import time
 
 import import_calibration as calib_find
 from pathlib import Path
@@ -348,8 +349,10 @@ class PlotGraphs(tk.Frame):
         self.graph_canvas.draw()
         self.graph_canvas.get_tk_widget().place(x = 0, y = 0, width=928,height=638)
 
-        self.left_temperature_label = tk.Label(self, text="TEST", font=('Helvetica', 15), background=theme.PANEL_BG)
-        self.left_temperature_label.place(x=10, y= 10, width = 200, height = 50)
+        self.left_temperature_label = tk.Label(self, text="", font=('Helvetica', 15), background=theme.PANEL_BG, anchor="w")
+        self.left_temperature_label.place(x=77, y=30, width=230, height=30)
+        self.right_temperature_label = tk.Label(self, text="", font=('Helvetica', 15), background=theme.PANEL_BG, anchor="w")
+        self.right_temperature_label.place(x=530, y=30, width=230, height=30)
 
         # Setting default ROI variables in the class state
         self.left_roi_xo = 1
@@ -487,21 +490,20 @@ class PlotGraphs(tk.Frame):
         self.axis[1, 1].plot(self.right_wavelengths, self.right_raw)
         self.axis[1, 1].set_title('RIGHT RAW')
  
-        self.graph_canvas = FigureCanvasTkAgg(self.fig, master=self)
+        # Reuse the existing canvas during continuous automatic fitting.
         self.graph_canvas.draw()
-        self.graph_canvas.get_tk_widget().place(x = 0, y = 0, width=928, height=638)
         
         left_temperature_string = "T= " + str(round(Estimated_Temperature_Left.fit_T)) + " +/- " + str(round(Estimated_Temperature_Left.sigT)) + " K"
         right_temperature_string = "T= " + str(round(Estimated_Temperature_Right.fit_T)) + " +/- " + str(round(Estimated_Temperature_Right.sigT)) + " K"
 
-        # Place the labels containing the temperatures of the fit
-        self.left_temperature_label = tk.Label(self, text=left_temperature_string, font=('Helvetica', 15), background=theme.PANEL_BG, anchor="w")# highlightbackground=theme.BORDER, highlightthickness=1)
-        self.left_temperature_label.place(x=77, y= 30, width = 230, height = 30)
-
-        self.right_temperature_label = tk.Label(self, text=right_temperature_string, font=('Helvetica', 15), background=theme.PANEL_BG, anchor="w")# highlightbackground=theme.BORDER, highlightthickness=1)
-        self.right_temperature_label.place(x=530, y= 30, width = 230, height = 30)
+        self.left_temperature_label.config(text=left_temperature_string)
+        self.right_temperature_label.config(text=right_temperature_string)
 
 class DataFileHandling(tk.Frame):
+    AUTOFIT_POLL_MS = 1000
+    AUTOFIT_SETTLE_SECONDS = 1.0
+    AUTOFIT_MAX_READ_RETRIES = 5
+
     def __init__(self, container, temperature_plots, calibration_files, x_position, y_position, autofit_folderpath):
         #tk.Frame.__init__(self, container)
         super().__init__(container)
@@ -523,7 +525,14 @@ class DataFileHandling(tk.Frame):
         # thread-safe queue and actually processed in file_fitting_thread(), which runs on
         # the main thread via self.after().
         self._new_spe_file_queue = queue.Queue()
-        self._spe_file_retry_counts = {}
+        self._pending_spe_files = {}
+        self._processed_spe_files = set()
+        self._failed_spe_files = {}
+        self._watch_generation = 0
+        self._autofit_after_id = None
+        self.my_observer = None
+        self.folder_path = None
+        self.bind("<Destroy>", self._on_autofit_destroy, add="+")
 
         #Frame buttons and labels
         self.select_lightfield_spectra = tk.Button(self, text="Select Single .spe for T-fit", font=('Helvetica', 10), command=lambda: self.data_file_open_dialog(1))
@@ -537,6 +546,8 @@ class DataFileHandling(tk.Frame):
         self.selected_folder_to_save_tfit.place(x = 10, y = 150, width=300, height = 50)
         self.select_automatic_fit = tk.Checkbutton(self, text="Automatic Fitting", bg = theme.PANEL_BG, font=('Helvetica', 10), variable = self.automatic_fitting_button_state, command=lambda: self.automatic_file_fitting())
         self.select_automatic_fit.place(x = 10, y = 200, width= 150, height= 30)
+        self.autofit_status = tk.Label(self, text="Automatic fitting stopped", anchor="w", font=('Helvetica', 8))
+        self.autofit_status.place(x=10, y=232, width=300, height=18)
 
         autofit_folderpath = Path(autofit_folderpath)
         autofit_folderpath = autofit_folderpath.absolute()
@@ -549,90 +560,171 @@ class DataFileHandling(tk.Frame):
         self.select_folder_to_save_tfit = tk.Button(self, text="Save Temperature Fit", font=('Helvetica', 10), command=lambda: self.data_file_open_dialog(2))
         self.select_folder_to_save_tfit.place(x = 10, y = 325, width=300, height = 30)
 
-    # This is the event that watchdog calls when a new .spe file appears in the watched
-    # folder. IMPORTANT: this runs on watchdog's own background thread, not the Tkinter
-    # main thread, so it must NOT touch any Tkinter widgets or the matplotlib canvas
-    # directly - doing so is unsafe and was the likely source of past intermittent
-    # glitches. It only hands the path off; file_fitting_thread() does the real work.
-    def file_created(self, event):
-        self._new_spe_file_queue.put(event.src_path)
+    # Watchdog callbacks only enqueue paths. All Tk access, reads, and fitting
+    # happen on the main thread. A generation token rejects old-session events.
+    def file_created(self, event, generation=None):
+        if event.is_directory:
+            return
+        path = getattr(event, "dest_path", None) or event.src_path
+        if Path(path).suffix.lower() == ".spe":
+            token = self._watch_generation if generation is None else generation
+            self._new_spe_file_queue.put((token, str(Path(path).resolve())))
 
-    # Runs on the main thread (via self.after below), so it's safe to update the plots here.
     def process_new_spe_file(self, file_path):
         try:
             if not self.calibration_files.has_valid_calibration():
+                self.autofit_status.config(text="Skipped: calibration missing")
                 print(f"Skipping fit for {file_path}: This state doesn't have a Calibration File.")
                 return True
 
-            #Update the calibration files and temperatures
-            left_calibration_file_location = r"{}".format(self.calibration_files.left_file_location.get("1.0",tk.END))
-            left_calibration_file_location = left_calibration_file_location.replace("\n", "")
-
-            right_calibration_file_location = r"{}".format(self.calibration_files.right_file_location.get("1.0",tk.END))
-            right_calibration_file_location = right_calibration_file_location.replace("\n", "")
-
-            #Update the calibration temperature values
-            left_calibration_temperature = float(self.calibration_files.set_left_temperature.get("1.0",tk.END))
-            right_calibration_temperature = float(self.calibration_files.set_right_temperature.get("1.0",tk.END))
-
-            self.plots.left_calibration_temperature = left_calibration_temperature
-            self.plots.right_calibration_temperature = right_calibration_temperature
-            self.plots.left_calibration_file = spe.SpeFile(left_calibration_file_location)
-            self.plots.right_calibration_file = spe.SpeFile(right_calibration_file_location)
-            self.plots.data_file = spe.SpeFile(r'{}'.format(file_path))
+            left_path = self.calibration_files.left_file_location.get("1.0", tk.END).strip()
+            right_path = self.calibration_files.right_file_location.get("1.0", tk.END).strip()
+            left_temperature = float(self.calibration_files.set_left_temperature.get("1.0", tk.END))
+            right_temperature = float(self.calibration_files.set_right_temperature.get("1.0", tk.END))
+            # Finish all reads before replacing the currently displayed data.
+            left_calibration = spe.SpeFile(left_path)
+            right_calibration = spe.SpeFile(right_path)
+            measurement = spe.SpeFile(file_path)
+            self.plots.left_calibration_temperature = left_temperature
+            self.plots.right_calibration_temperature = right_temperature
+            self.plots.left_calibration_file = left_calibration
+            self.plots.right_calibration_file = right_calibration
+            self.plots.data_file = measurement
             self.plots.current_frame_index = 0
             self.plots.update_graphs()
+            self.selected_lightfield_spectra.delete("1.0", tk.END)
+            self.selected_lightfield_spectra.insert(tk.END, file_path)
+            self.autofit_status.config(text=f"Fitted: {Path(file_path).name}")
             return True
         except Exception as read_error:
-            # Most likely the acquisition software is still writing this file - retry
-            # on the next poll instead of losing it.
+            self.autofit_status.config(text=f"Waiting to fit: {Path(file_path).name}")
             print(f"Could not process {file_path} yet ({read_error})")
             return False
 
-    def automatic_file_fitting(self):
-        if self.automatic_fitting_button_state.get() == 1:
-            print("Automatic file fitting enabled")
+    def _scan_spe_files(self):
+        return {str(path.resolve()) for path in Path(self.folder_path).rglob("*")
+                if path.is_file() and path.suffix.lower() == ".spe"}
 
-            #Create the watchdog that looks out for new .spe files created in selected directory
-            self.folder_path = self.selected_folder_to_save_tfit.get("1.0",tk.END).strip()  # Current directory, can be changed to the desired folder path
-            self.folder_path = self.folder_path.replace("/", "\\")
-            self.my_event_handler = PatternMatchingEventHandler(patterns=["*.spe"], ignore_directories=True)
-            self.my_event_handler.on_created = self.file_created
+    def automatic_file_fitting(self):
+        if not self.automatic_fitting_button_state.get():
+            self.stop_automatic_fitting()
+            return
+        chosen_path = self.selected_folder_to_save_tfit.get("1.0", tk.END).strip()
+        folder = Path(chosen_path).expanduser().resolve() if chosen_path else None
+        if self.my_observer is not None and str(folder) == self.folder_path and self.my_observer.is_alive():
+            return
+        self.stop_automatic_fitting()
+        if folder is None or not folder.is_dir():
+            self.autofit_status.config(text="Choose an existing folder for T-fit")
+            return
+        try:
+            self.folder_path = str(folder)
+            # Existing files are not refitted merely by enabling automatic mode.
+            self._processed_spe_files = self._scan_spe_files()
+            self._watch_generation += 1
+            generation = self._watch_generation
+            self.my_event_handler = PatternMatchingEventHandler(patterns=["*.spe"], ignore_directories=True,
+                                                               case_sensitive=False)
+            callback = lambda event: self.file_created(event, generation)
+            self.my_event_handler.on_created = callback
+            self.my_event_handler.on_moved = callback
+            self.my_event_handler.on_modified = callback
             self.my_observer = Observer()
             self.my_observer.schedule(self.my_event_handler, self.folder_path, recursive=True)
-
-            #Starts watchdog and calls for function to check
             self.my_observer.start()
-            self.file_fitting_thread()
+        except Exception as watch_error:
+            self.stop_automatic_fitting()
+            self.autofit_status.config(text="Could not watch the selected folder")
+            print(f"Could not start automatic fitting: {watch_error}")
+            return
+        self.automatic_fitting_button_state.set(1)
+        self.autofit_status.config(text="Watching for new SPE files")
+        print(f"Automatic file fitting enabled: {self.folder_path}")
+        self.file_fitting_thread()
 
-    #Runs on the main thread. Drains any new files watchdog has queued up and processes
-    #them here (where it's safe to touch the GUI), then waits until the checkbox is
-    #unchecked to stop the watchdog.
+    def stop_automatic_fitting(self):
+        self._watch_generation += 1
+        self.automatic_fitting_button_state.set(0)
+        if self._autofit_after_id is not None:
+            self.after_cancel(self._autofit_after_id)
+            self._autofit_after_id = None
+        observer, self.my_observer = self.my_observer, None
+        if observer is not None:
+            observer.stop()
+            if observer.ident is not None:
+                observer.join(timeout=2)
+        self._pending_spe_files.clear()
+        self._processed_spe_files.clear()
+        self._failed_spe_files.clear()
+        while True:
+            try:
+                self._new_spe_file_queue.get_nowait()
+            except queue.Empty:
+                break
+        if self.autofit_status.winfo_exists():
+            self.autofit_status.config(text="Automatic fitting stopped")
+
+    def _on_autofit_destroy(self, event):
+        if event.widget is self:
+            self.stop_automatic_fitting()
+
     def file_fitting_thread(self):
-        pending_files = []
-        while not self._new_spe_file_queue.empty():
-            pending_files.append(self._new_spe_file_queue.get())
-
-        max_retries = 5
-        for file_path in pending_files:
-            if self.process_new_spe_file(file_path):
-                self._spe_file_retry_counts.pop(file_path, None)
+        self._autofit_after_id = None
+        if not self.automatic_fitting_button_state.get():
+            return
+        if self.my_observer is None or not self.my_observer.is_alive():
+            self.stop_automatic_fitting()
+            self.autofit_status.config(text="Folder watcher stopped unexpectedly")
+            return
+        now = time.monotonic()
+        new_paths = set()
+        while True:
+            try:
+                generation, path = self._new_spe_file_queue.get_nowait()
+            except queue.Empty:
+                break
+            if generation == self._watch_generation:
+                new_paths.add(path)
+        # Recover arrivals even if an OS event is missed, including renamed or
+        # slowly written files. Duplicate events still produce a single fit.
+        try:
+            new_paths.update(self._scan_spe_files())
+        except OSError as scan_error:
+            print(f"Could not scan {self.folder_path}: {scan_error}")
+        for path in new_paths - self._processed_spe_files:
+            if not Path(path).is_relative_to(self.folder_path):
+                continue
+            self._pending_spe_files.setdefault(path, {"signature": None, "changed_at": now, "retries": 0})
+        for path, pending in list(self._pending_spe_files.items()):
+            try:
+                stat = Path(path).stat()
+                signature = (stat.st_size, stat.st_mtime_ns)
+            except FileNotFoundError:
+                self._pending_spe_files.pop(path, None)
+                continue
+            except OSError:
+                continue
+            if self._failed_spe_files.get(path) == signature:
+                self._pending_spe_files.pop(path, None)
+                continue
+            if signature != pending["signature"]:
+                pending.update(signature=signature, changed_at=now, retries=0)
+                continue
+            if stat.st_size == 0 or now - pending["changed_at"] < self.AUTOFIT_SETTLE_SECONDS:
+                continue
+            if self.process_new_spe_file(path):
+                self._processed_spe_files.add(path)
+                self._pending_spe_files.pop(path, None)
+                self._failed_spe_files.pop(path, None)
             else:
-                retry_count = self._spe_file_retry_counts.get(file_path, 0) + 1
-                if retry_count <= max_retries:
-                    self._spe_file_retry_counts[file_path] = retry_count
-                    self._new_spe_file_queue.put(file_path)
-                else:
-                    print(f"Giving up on {file_path} after {max_retries} attempts")
-                    del self._spe_file_retry_counts[file_path]
-
-        if self.automatic_fitting_button_state.get() == 1:
-            self.after(1000, self.file_fitting_thread)
-        else:
-            print("Automatic file fitting disabled")
-            self.my_observer.stop()
-            self.my_observer.join()
-
+                pending["retries"] += 1
+                if pending["retries"] >= self.AUTOFIT_MAX_READ_RETRIES:
+                    # Retry again if writing resumes; do not lose a late footer.
+                    self._failed_spe_files[path] = signature
+                    self._pending_spe_files.pop(path, None)
+                    self.autofit_status.config(text=f"Failed to fit: {Path(path).name}")
+                    print(f"Waiting for changes to unreadable SPE file: {path}")
+        self._autofit_after_id = self.after(self.AUTOFIT_POLL_MS, self.file_fitting_thread)
 
     def data_file_open_dialog(self, file_location_number):
         #Differentiates between the light field spectra and the t-rax folder
@@ -672,9 +764,12 @@ class DataFileHandling(tk.Frame):
             
         elif file_location_number == 2:
             self.open_folder_path = filedialog.askdirectory()
-            #print(open_file_name)
-            self.selected_folder_to_save_tfit.delete("1.0",tk.END)
-            self.selected_folder_to_save_tfit.insert(tk.END, self.open_folder_path)        
+            if not self.open_folder_path:
+                return
+            self.selected_folder_to_save_tfit.delete("1.0", tk.END)
+            self.selected_folder_to_save_tfit.insert(tk.END, self.open_folder_path)
+            if self.automatic_fitting_button_state.get():
+                self.automatic_file_fitting()
 
 class ROISelectionWindow(tk.Toplevel):
     def __init__(self, parent, plot_graphs_instance):

@@ -244,7 +244,7 @@ if __name__ == "__main__":
                  bg=theme.PANEL_BG, padx=10).pack(side="right", fill="y")
 
     file_menu = add_menu("Main")
-    file_menu.add_command(label="Exit", command=window.quit)
+    file_menu.add_command(label="Exit", command=window.destroy)
 
     # Create a Spectrometer menu
     spectrometer_menu = add_menu("Spectrometer")
