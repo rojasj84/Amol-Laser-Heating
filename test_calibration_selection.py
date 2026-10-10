@@ -157,9 +157,9 @@ class CalibrationGuiTests(unittest.TestCase):
     def test_manual_selection_refreshes_missing_status(self):
         left = import_calibration.resolve_calibration_file('L_2255K_15x_wI')
         right = import_calibration.resolve_calibration_file('R_2255K_15x_wI')
-        with patch('acton_pixis.filedialog.askopenfilename', return_value=str(left)):
+        with patch('laser_heating.ui.calibration.filedialog.askopenfilename', return_value=str(left)):
             self.selection.calibration_file_open_dialog(1)
-        with patch('acton_pixis.filedialog.askopenfilename', return_value=str(right)):
+        with patch('laser_heating.ui.calibration.filedialog.askopenfilename', return_value=str(right)):
             self.selection.calibration_file_open_dialog(2)
         self.assertTrue(self.selection.has_valid_calibration())
         self.assertIn('OK', self.selection.left_status_label.cget('text'))

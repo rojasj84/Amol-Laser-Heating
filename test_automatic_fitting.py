@@ -13,6 +13,7 @@ from watchdog.events import FileCreatedEvent
 from acton_pixis import CalibrationFileSelection, DataFileHandling, PlotGraphs
 from import_calibration import CALIBRATION_ROOT
 from TemperatureFit.SpeFile import SpeFile
+from laser_heating.readers import SpeReader
 
 
 class AutomaticFittingTests(unittest.TestCase):
@@ -28,7 +29,7 @@ class AutomaticFittingTests(unittest.TestCase):
         self.payload = self.left.read_bytes()
         self.calibration = CalibrationFileSelection(self.root, 0, 0, self.left, self.right, self.folder)
         self.fits = []
-        self.plots = SimpleNamespace(update_graphs=self.record_fit)
+        self.plots = SimpleNamespace(update_graphs=self.record_fit, set_capture=self.set_capture, load_capture=SpeReader().read, file_extensions=(".spe",))
         self.panel = DataFileHandling(self.root, self.plots, self.calibration, 0, 0, self.folder)
         self.panel.AUTOFIT_POLL_MS = 40
         self.panel.AUTOFIT_SETTLE_SECONDS = 0.08
@@ -47,9 +48,16 @@ class AutomaticFittingTests(unittest.TestCase):
         self.temp.cleanup()
         self.assertEqual(self.errors, [])
 
+    def set_capture(self, measurement, left, right, left_temperature, right_temperature):
+        self.plots.data_file = measurement
+        self.plots.left_calibration_file, self.plots.right_calibration_file = left, right
+        self.plots.left_calibration_temperature, self.plots.right_calibration_temperature = left_temperature, right_temperature
+        self.plots.current_frame_index = 0
+        self.plots.update_graphs()
+
     def record_fit(self):
         self.assertEqual(threading.get_ident(), self.gui_thread)
-        self.fits.append(Path(self.plots.data_file.filename).name)
+        self.fits.append(Path(self.plots.data_file.source).name)
 
     def start(self):
         self.panel.automatic_fitting_button_state.set(1)
@@ -156,7 +164,7 @@ class AutomaticFittingTests(unittest.TestCase):
         old = self.panel.my_observer
         new_folder = self.folder / 'other'
         new_folder.mkdir()
-        with patch('acton_pixis.filedialog.askdirectory', return_value=str(new_folder)):
+        with patch('laser_heating.ui.files.filedialog.askdirectory', return_value=str(new_folder)):
             self.panel.data_file_open_dialog(2)
         self.observers.append(self.panel.my_observer)
         self.assertFalse(old.is_alive())
@@ -221,7 +229,7 @@ class AutomaticFittingTests(unittest.TestCase):
         self.assertEqual(len(self.plots.winfo_children()), widget_count)
 
     def test_failed_observer_start_resets_checkbox_and_timer(self):
-        with patch('acton_pixis.Observer') as factory:
+        with patch('laser_heating.ui.files.Observer') as factory:
             factory.return_value.start.side_effect = OSError('cannot watch folder')
             self.start()
         self.assertEqual(self.panel.automatic_fitting_button_state.get(), 0)

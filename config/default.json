@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "camera": {
+    "name": "Acton-PIXIS 400",
+    "reader": "spe",
+    "width": 1340,
+    "height": 70,
+    "left_roi": {
+      "x_start": 1,
+      "x_end": 1339,
+      "y_start": 0,
+      "y_end": 34
+    },
+    "right_roi": {
+      "x_start": 1,
+      "x_end": 1339,
+      "y_start": 35,
+      "y_end": 69
+    }
+  },
+  "hardware": {
+    "agilis_port": "COM11",
+    "left_relay_port": "COM7",
+    "right_relay_port": "COM6",
+    "left_laser_ip": "192.168.1.100",
+    "right_laser_ip": "192.168.0.100"
+  },
+  "calibration": {
+    "root": "../TemperatureFit/T_Calib_20250314",
+    "left_table": "../TemperatureFit/calibration_file_table_left_side.csv",
+    "right_table": "../TemperatureFit/calibration_file_table_right_side.csv",
+    "left_file": "../TemperatureFit/T_Calib_20250314/15xMag/L_2255K_15x_wI.spe",
+    "right_file": "../TemperatureFit/T_Calib_20250314/15xMag/R_2255K_15x_wI.spe",
+    "temperature_kelvin": 2255,
+    "use_filter_table": true
+  },
+  "acquisition_folder": "../TemperatureFit"
+}

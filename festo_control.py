@@ -26,6 +26,11 @@ class FestoControlWindow(tk.Frame):
         self.RightSideControls.place(x = 140, y = 2)
 
 
+    def set_com_ports(self, left_port, right_port):
+        self.LeftSideControls.left_side_comport = left_port
+        self.RightSideControls.right_side_comport = right_port
+
+
 # This is the right side of the controls
 class RightSideFrame(tk.Frame):
     def __init__(self, parent, right_side_comport):
@@ -56,14 +61,14 @@ class RightSideFrame(tk.Frame):
         R6_RNDF50T.place(x=10,y=(button_height+5)*6,width=button_width,height=button_height)
 
         R7_RNDF10T = tk.Checkbutton(self, text = "R7 NDF 10T", anchor='w', command= lambda:DenkTalk.flip_single_relay_status(self.right_side_comport,7))
-        R7_RNDF10T.place(x=10,y=(button_height+5)*7,width=button_width,height=button_height) 
- 
+        R7_RNDF10T.place(x=10,y=(button_height+5)*7,width=button_width,height=button_height)
+
  #       R9_RTO1MLENS = tk.Checkbutton(self, text = "R9 To 1m Lens", command= lambda:DenkTalk.flip_single_relay_status(right_side_comport,9))
  #       R9_RTO1MLENS.place(x=10,y=(button_height+5)*9,width=button_width,height=button_height)
 
  #       R10_RFROM1MLENS = tk.Checkbutton(self, text = "R10 From 1m Lens", command= lambda:DenkTalk.flip_single_relay_status(right_side_comport,10))
  #       R10_RFROM1MLENS.place(x=10,y=(button_height+10)*10,width=button_width,height=button_height)
- 
+
  #       R89_RTO1MLENS = tk.Checkbutton(self, text = "R8-9 1m Lens", command= lambda:(DenkTalk.flip_single_relay_status(right_side_comport,9), DenkTalk.flip_single_relay_status(right_side_comport,10)))
  #       R89_RTO1MLENS.place(x=10,y=(button_height+7)*8,width=button_width,height=button_height)
 
