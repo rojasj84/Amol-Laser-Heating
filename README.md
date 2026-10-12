@@ -53,8 +53,12 @@ Copy `config/default.json` to a new profile. Set `camera.width` and
 cropping/binning. Supply left and right ROIs with zero-based pixel coordinates
 and exclusive end bounds, matching NumPy slices.
 
-Paths in a profile resolve relative to the JSON file. Runtime ROI edits can
-be saved in the ROI editor's separate JSON format; they do not overwrite the
+Paths in a profile resolve relative to the JSON file. In the ROI editor, drag
+the corner/edge handles to resize, or drag inside a rectangle to move it. Hovering shows the available action. The coordinate
+fields update while dragging; fitting changes only after **Apply & Close**.
+Click a side title to select which ROI to edit when they overlap.
+
+Runtime ROI edits can be saved in the ROI editor's separate JSON format; they do not overwrite the
 application profile. Runtime connection edits also do not overwrite it.
 
 Supported readers:
@@ -89,7 +93,7 @@ SDK imports. Direct SDK acquisition is a future integration described in
 ## Verify
 
 ```powershell
-python -B -m unittest test_modular_architecture test_calibration_selection test_debug_mode test_automatic_fitting -v
+python -B -m unittest test_modular_architecture test_calibration_selection test_debug_mode test_automatic_fitting test_roi_dragging -v
 ```
 
 Tests exercise real Tk widgets and watchdog events, so they require a Windows

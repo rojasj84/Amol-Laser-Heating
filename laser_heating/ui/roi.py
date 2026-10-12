@@ -5,9 +5,9 @@ import json
 import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-import matplotlib.patches as patches
 import theme
 from laser_heating.models import RegionOfInterest
+from .roi_drag import ROIDragController
 
 class ROISelectionWindow(tk.Toplevel):
     def __init__(self, parent, plot_graphs_instance):
@@ -30,7 +30,11 @@ class ROISelectionWindow(tk.Toplevel):
 
         # Calculate dynamic vmin/vmax to avoid blowing out contrast
         vmax = np.percentile(img_data, 99) if np.max(img_data) > 0 else 1000
-        self.im = self.ax.imshow(img_data, aspect='auto', cmap='viridis', vmax=vmax)
+        self.im = self.ax.imshow(img_data, aspect='auto', cmap='viridis', vmax=vmax,
+                                 extent=(0, self.image_width, self.image_height, 0))
+        # Include a small margin so handles at the image boundaries stay pickable.
+        self.ax.set_xlim(-0.02*self.image_width, 1.02*self.image_width)
+        self.ax.set_ylim(1.02*self.image_height, -0.02*self.image_height)
         self.fig.colorbar(self.im, ax=self.ax)
         self.ax.set_title("CCD Image", color="white")
         self.ax.tick_params(colors="white")
@@ -39,11 +43,16 @@ class ROISelectionWindow(tk.Toplevel):
         self.canvas.draw()
         self.canvas.get_tk_widget().place(x=10, y=10, width=650, height=650)
 
+        self.mouse_hint = tk.Label(self, bg=theme.PANEL_BG, fg=theme.FG,
+                                   text="Drag corners/edges to resize; drag inside to move.\nClick a side title to choose overlapping ROIs.")
+        self.mouse_hint.place(x=10, y=663, width=650, height=32)
+        self._syncing_roi_fields = False
+
         # Right Panel - Controls
         control_frame = tk.Frame(self, bg=theme.PANEL_BG)
         control_frame.place(x=670, y=10, width=220, height=680)
 
-        tk.Label(control_frame, text="Left Spectrum (Green)", bg=theme.PANEL_BG, fg="green", font=("Helvetica", 11, "bold")).pack(pady=(5, 2))
+        tk.Button(control_frame, text="Left Spectrum (Green)", command=lambda: self.drag_controller.select_side("left"), bg=theme.PANEL_BG, fg="green", font=("Helvetica", 11, "bold")).pack(pady=(5, 2))
 
         # X and Y controls for Left
         tk.Label(control_frame, text="X-Start:", bg=theme.PANEL_BG, fg=theme.FG).pack()
@@ -66,7 +75,7 @@ class ROISelectionWindow(tk.Toplevel):
         tk.Spinbox(control_frame, from_=0, to=self.image_height, textvariable=self.left_y_end_var, command=self.update_lines, bg=theme.TEXT_BG, fg=theme.FG).pack()
         self.left_y_end_var.trace("w", lambda name, index, mode: self.update_lines())
 
-        tk.Label(control_frame, text="Right Spectrum (Red)", bg=theme.PANEL_BG, fg="red", font=("Helvetica", 11, "bold")).pack(pady=(15, 2))
+        tk.Button(control_frame, text="Right Spectrum (Red)", command=lambda: self.drag_controller.select_side("right"), bg=theme.PANEL_BG, fg="red", font=("Helvetica", 11, "bold")).pack(pady=(15, 2))
 
         # X and Y controls for Right
         tk.Label(control_frame, text="X-Start:", bg=theme.PANEL_BG, fg=theme.FG).pack()
@@ -100,9 +109,11 @@ class ROISelectionWindow(tk.Toplevel):
         self.error_label = tk.Label(control_frame, text="", fg="#FF5252", wraplength=210, bg=theme.PANEL_BG)
         self.error_label.pack()
 
-        # Bounding boxes references
-        self.left_rect = None
-        self.right_rect = None
+        self.drag_controller = ROIDragController(self.ax, self.image_width, self.image_height,
+                                                  self._on_roi_drag, self._on_roi_hover)
+        # Keep the named rectangle references for existing callers.
+        self.left_rect = self.drag_controller.rectangles["left"]
+        self.right_rect = self.drag_controller.rectangles["right"]
 
         self.update_lines()
 
@@ -148,42 +159,54 @@ class ROISelectionWindow(tk.Toplevel):
         except Exception as e:
             self.error_label.config(text=f"Failed to load config: {e}")
 
+    def _roi_from_fields(self, side):
+        return RegionOfInterest(*(int(getattr(self, f"{side}_{field}_var").get())
+                                  for field in ("x_start", "x_end", "y_start", "y_end")))
+
     def update_lines(self):
+        if self._syncing_roi_fields or not hasattr(self, "drag_controller"):
+            return
+        rois = {}
+        for side in ("left", "right"):
+            try:
+                roi = self._roi_from_fields(side)
+                roi.validate(self.image_width, self.image_height)
+                rois[side] = roi
+            except ValueError:
+                # Hide invalid previews while the user edits numeric text.
+                continue
+        self.drag_controller.set_rois(rois)
+
+    def _on_roi_drag(self, side, roi):
+        self._syncing_roi_fields = True
         try:
-            lx_start = int(self.left_x_start_var.get())
-            lx_end = int(self.left_x_end_var.get())
-            ly_start = int(self.left_y_start_var.get())
-            ly_end = int(self.left_y_end_var.get())
+            for field in ("x_start", "x_end", "y_start", "y_end"):
+                getattr(self, f"{side}_{field}_var").set(str(getattr(roi, field)))
+        finally:
+            self._syncing_roi_fields = False
+        self.error_label.config(text="")
+        self.update_lines()
 
-            rx_start = int(self.right_x_start_var.get())
-            rx_end = int(self.right_x_end_var.get())
-            ry_start = int(self.right_y_start_var.get())
-            ry_end = int(self.right_y_end_var.get())
-        except ValueError:
-            return # Ignore if not a valid integer
-
-        if self.left_rect: self.left_rect.remove()
-        if self.right_rect: self.right_rect.remove()
-
-        # Rectangle(xy, width, height)
-        # We use ly_start as y, and ly_end-ly_start as height
-        self.left_rect = patches.Rectangle((lx_start, ly_start), lx_end - lx_start, ly_end - ly_start,
-                                           linewidth=2, edgecolor='green', facecolor='none', linestyle='--')
-        self.ax.add_patch(self.left_rect)
-
-        self.right_rect = patches.Rectangle((rx_start, ry_start), rx_end - rx_start, ry_end - ry_start,
-                                            linewidth=2, edgecolor='red', facecolor='none', linestyle='--')
-        self.ax.add_patch(self.right_rect)
-
-        self.canvas.draw_idle()
+    def _on_roi_hover(self, side, handle):
+        cursors = {"top": "sb_v_double_arrow", "bottom": "sb_v_double_arrow",
+                   "left": "sb_h_double_arrow", "right": "sb_h_double_arrow",
+                   "top_left": "top_left_corner", "top_right": "top_right_corner",
+                   "bottom_left": "bottom_left_corner", "bottom_right": "bottom_right_corner",
+                   "move": "fleur"}
+        self.canvas.get_tk_widget().configure(cursor=cursors.get(handle, "arrow"))
+        if side is None:
+            text = "Drag corners/edges to resize; drag inside to move.\nClick a side title to choose overlapping ROIs."
+        else:
+            action = "move rectangle" if handle == "move" else f"resize {handle.replace('_', ' ')}"
+            text = f"{side.title()} ROI: click and hold to {action}."
+        self.mouse_hint.config(text=text)
 
     def apply_and_close(self):
         previous = self.plot_graphs.left_roi, self.plot_graphs.right_roi
         try:
             rois = []
             for side in ("left", "right"):
-                roi = RegionOfInterest(*(int(getattr(self, f"{side}_{field}_var").get())
-                                          for field in ("x_start", "x_end", "y_start", "y_end")))
+                roi = self._roi_from_fields(side)
                 roi.validate(self.image_width, self.image_height)
                 rois.append(roi)
             self.plot_graphs.left_roi, self.plot_graphs.right_roi = rois
@@ -195,6 +218,7 @@ class ROISelectionWindow(tk.Toplevel):
         self.destroy()
 
     def destroy(self):
+        self.drag_controller.disconnect()
         # Traces may have queued an idle draw just before this window closes.
         if self.canvas._idle_draw_id is not None:
             self.canvas.get_tk_widget().after_cancel(self.canvas._idle_draw_id)
