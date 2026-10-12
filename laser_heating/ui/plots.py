@@ -25,51 +25,40 @@ class PlotGraphs(tk.Frame):
         self.y_position = y_position
         self.place(x = self.x_position, y = self.y_position)
 
-        self.wavelengths = np.arange(1, 101)
-        self.left_fit = np.arange(1, 101)
-        self.right_fit = np.arange(1, 101)
-        self.left_raw = np.arange(1, 101)
-        self.right_raw = np.arange(1, 101)
+        # A separate header keeps readouts and navigation outside the plot canvas.
+        self.plot_header = tk.Frame(self, bg=theme.PANEL_BG)
+        self.plot_header.place(x=0, y=0, width=928, height=64)
+        tk.Label(self.plot_header, text="LEFT TEMPERATURE", font=(theme.FONT_FAMILY, 9, "bold"),
+                 fg=theme.LEFT_FG, bg=theme.PANEL_BG, anchor="w").place(x=18, y=6, width=285, height=18)
+        tk.Label(self.plot_header, text="RIGHT TEMPERATURE", font=(theme.FONT_FAMILY, 9, "bold"),
+                 fg=theme.RIGHT_FG, bg=theme.PANEL_BG, anchor="w").place(x=625, y=6, width=285, height=18)
+        self.left_temperature_label = tk.Label(self.plot_header, text="", font=(theme.FONT_FAMILY, 14, "bold"),
+                                               fg=theme.FG, bg=theme.PANEL_BG, anchor="w")
+        self.left_temperature_label.place(x=18, y=26, width=285, height=29)
+        self.right_temperature_label = tk.Label(self.plot_header, text="", font=(theme.FONT_FAMILY, 14, "bold"),
+                                                fg=theme.FG, bg=theme.PANEL_BG, anchor="w")
+        self.right_temperature_label.place(x=625, y=26, width=285, height=29)
+        tk.Frame(self.plot_header, bg=theme.BORDER).place(x=0, y=63, width=928, height=1)
 
-        self.fig, self.axis = plt.subplots(2, 2)
+        self.frame_controls = tk.Frame(self.plot_header, bg=theme.PANEL_BG)
+        self.frame_controls.place(relx=0.5, rely=0.5, anchor="center", width=232, height=36)
+        self.btn_prev_frame = tk.Button(self.frame_controls, text="‹", command=self.prev_frame)
+        self.btn_prev_frame.place(x=0, y=0, width=36, height=36)
+        self.frame_status_label = tk.Label(self.frame_controls, text="Frame: 1 / 1",
+                                           font=theme.FONT_BODY, fg=theme.FG_MUTED, bg=theme.PANEL_BG)
+        self.frame_status_label.place(x=40, y=0, width=150, height=36)
+        self.btn_next_frame = tk.Button(self.frame_controls, text="›", command=self.next_frame)
+        self.btn_next_frame.place(x=196, y=0, width=36, height=36)
+        theme.style_button(self.btn_prev_frame)
+        theme.style_button(self.btn_next_frame)
+
+        self.fig, self.axis = plt.subplots(2, 2, figsize=(9.28, 5.7), layout="constrained")
         self.fig.patch.set_facecolor(theme.PANEL_BG)
-        for row in self.axis:
-            for single_axis in row:
-                single_axis.set_facecolor(theme.PANEL_BG)
-        plt.tight_layout()
-        self.axis[0, 0].plot(self.wavelengths, self.left_fit)
-        self.axis[0, 0].set_title('LEFT FIT')
-
-        self.axis[0, 1].plot(self.wavelengths, self.right_fit, 'tab:orange')
-        self.axis[0, 1].set_title('RIGHT FIT')
-        self.axis[1, 0].plot(self.wavelengths, self.left_raw, 'tab:green')
-        self.axis[1, 0].set_title('LEFT RAW')
-        self.axis[1, 1].plot(self.wavelengths, self.right_raw, 'tab:red')
-        self.axis[1, 1].set_title('RIGHT RAW')
-
         self.graph_canvas = FigureCanvasTkAgg(self.fig, master=self)
-        self.graph_canvas.draw()
-        self.graph_canvas.get_tk_widget().place(x = 0, y = 0, width=928,height=638)
-
-        self.left_temperature_label = tk.Label(self, text="", font=('Helvetica', 15), background=theme.PANEL_BG, anchor="w")
-        self.left_temperature_label.place(x=77, y=30, width=230, height=30)
-        self.right_temperature_label = tk.Label(self, text="", font=('Helvetica', 15), background=theme.PANEL_BG, anchor="w")
-        self.right_temperature_label.place(x=530, y=30, width=230, height=30)
-
+        self.graph_canvas.get_tk_widget().place(x=0, y=65, width=928, height=573)
         self.left_roi = self.camera_profile.left_roi
         self.right_roi = self.camera_profile.right_roi
-
         self.current_frame_index = 0
-
-        # Frame navigator controls
-        self.btn_prev_frame = tk.Button(self, text="<", font=('Helvetica', 12, 'bold'), command=self.prev_frame)
-        self.btn_prev_frame.place(x=320, y=30, width=30, height=30)
-
-        self.frame_status_label = tk.Label(self, text="Frame: 1 / 1", font=('Helvetica', 12), background=theme.PANEL_BG)
-        self.frame_status_label.place(x=360, y=30, width=120, height=30)
-
-        self.btn_next_frame = tk.Button(self, text=">", font=('Helvetica', 12, 'bold'), command=self.next_frame)
-        self.btn_next_frame.place(x=490, y=30, width=30, height=30)
 
         self.left_calibration_temperature = calibration_temperature
         self.right_calibration_temperature = calibration_temperature
@@ -135,14 +124,22 @@ class PlotGraphs(tk.Frame):
         for row in self.axis:
             for axis in row:
                 axis.clear()
-                axis.set_facecolor(theme.PANEL_BG)
         for column, result in enumerate((left, right)):
-            label = "LEFT" if column == 0 else "RIGHT"
+            side = "Left" if column == 0 else "Right"
+            color = theme.LEFT_FG if column == 0 else theme.RIGHT_FG
             self.axis[0, column].plot(result.wavelengths_nm, result.corrected_counts,
-                                      result.wavelengths_nm, result.fitted_counts)
-            self.axis[0, column].set_title(f"{label} FIT")
-            self.axis[1, column].plot(result.wavelengths_nm, result.raw_counts)
-            self.axis[1, column].set_title(f"{label} RAW")
+                                      color=color, linewidth=1.3)
+            self.axis[0, column].plot(result.wavelengths_nm, result.fitted_counts,
+                                      color=theme.FIT_COLOR, linewidth=1.6, linestyle="--")
+            self.axis[0, column].set_title(f"{side} fit", loc="left", pad=10)
+            self.axis[1, column].plot(result.wavelengths_nm, result.raw_counts,
+                                      color=color, linewidth=1.3)
+            self.axis[1, column].set_title(f"{side} raw spectrum", loc="left", pad=10)
+            self.axis[1, column].set_xlabel("Wavelength (nm)")
+            for row in range(2):
+                axis = self.axis[row, column]
+                axis.set_ylabel("Counts")
+                theme.style_plot_axis(axis)
         self.graph_canvas.draw()
         self.left_temperature_label.config(text=self._temperature_label(left))
         self.right_temperature_label.config(text=self._temperature_label(right))
@@ -152,4 +149,4 @@ class PlotGraphs(tk.Frame):
         if not np.isfinite(result.temperature_kelvin):
             return "Temperature fit unavailable"
         uncertainty = str(round(result.uncertainty_kelvin)) if np.isfinite(result.uncertainty_kelvin) else "?"
-        return f"T= {round(result.temperature_kelvin)} +/- {uncertainty} K"
+        return f"T= {round(result.temperature_kelvin)} ± {uncertainty} K"

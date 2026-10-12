@@ -29,6 +29,7 @@ python -m pip install -r requirements.txt
 
 | Change | File or package |
 | --- | --- |
+| Dark palette, typography, shared control styles | `theme.py` |
 | Camera dimensions, default ROIs, calibration paths, connections | `config/default.json` |
 | New camera export format | `laser_heating/readers.py` |
 | Capture, ROI, spectrum, and result types | `laser_heating/models.py` |

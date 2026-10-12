@@ -238,6 +238,31 @@ class GenericCameraApplicationTests(unittest.TestCase):
         self.assertAlmostEqual(self.plots.left_result.temperature_kelvin, 2100, places=4)
         self.assertIs(self.plots.graph_canvas, canvas)
 
+    def test_navigation_and_readouts_do_not_overlap_or_clip_the_plot(self):
+        from tkinter import font as tkfont
+
+        def bounds_in_plot(widget):
+            x, y = 0, 0
+            current = widget
+            while current is not self.plots:
+                x += current.winfo_x()
+                y += current.winfo_y()
+                current = current.master
+            return x, y, x+widget.winfo_width(), y+widget.winfo_height()
+
+        for frame in (0, 1):
+            self.plots.current_frame_index = frame
+            self.plots.update_graphs()
+            self.root.update_idletasks()
+            canvas = self.plots.graph_canvas.get_tk_widget()
+            _, canvas_top, _, _ = bounds_in_plot(canvas)
+            for name in ("left_temperature_label", "right_temperature_label",
+                         "frame_status_label", "btn_prev_frame", "btn_next_frame"):
+                widget = getattr(self.plots, name)
+                self.assertLessEqual(bounds_in_plot(widget)[3], canvas_top, name)
+                font = tkfont.Font(root=widget, font=widget.cget("font"))
+                self.assertLessEqual(font.measure(widget.cget("text")), widget.winfo_width(), name)
+
     def test_automatic_mode_fits_new_generic_camera_file(self):
         self.panel.automatic_fitting_button_state.set(1)
         self.panel.automatic_file_fitting()

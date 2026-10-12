@@ -77,6 +77,7 @@ class HeatingApplication:
         # Preserve the existing startup layout; other windows are built on demand.
         self.open_window("piezo")
         self.open_window("festo")
+        theme.modernize_widgets(root)
 
     def open_window(self, name):
         existing = self.windows.get(name)
@@ -110,6 +111,7 @@ class HeatingApplication:
             else:
                 window.destroy()
                 raise ValueError(f"Unknown window {name!r}")
+        theme.modernize_widgets(window)
         theme.apply_dark_titlebar(window)
         self.windows[name] = window
         return window

@@ -115,6 +115,9 @@ class ROISelectionWindow(tk.Toplevel):
         self.left_rect = self.drag_controller.rectangles["left"]
         self.right_rect = self.drag_controller.rectangles["right"]
 
+        theme.style_button(self.btn_apply, kind="primary")
+        theme.modernize_widgets(self)
+        theme.style_plot_axis(self.ax)
         self.update_lines()
 
     def save_config(self):

@@ -68,6 +68,9 @@ class DataFileHandling(tk.Frame):
         self.entered_output_filename.place(x = 10, y = 290, width=300, height = 30)
         self.select_folder_to_save_tfit = tk.Button(self, text="Save Temperature Fit", font=('Helvetica', 10), command=lambda: self.data_file_open_dialog(2))
         self.select_folder_to_save_tfit.place(x = 10, y = 325, width=300, height = 30)
+        self.enter_output_filename.config(text="Output filename", anchor="w", fg=theme.FG_MUTED)
+        self.autofit_status.config(fg=theme.FG_MUTED)
+        theme.modernize_widgets(self)
 
     # Watchdog callbacks only enqueue paths. All Tk access, reads, and fitting
     # happen on the main thread. A generation token rejects old-session events.

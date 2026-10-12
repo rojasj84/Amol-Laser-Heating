@@ -125,10 +125,10 @@ class TransmissionFilterSelection(tk.Frame):
         self.y_position = y_position
         #self.place(x = self.x_position, y = self.y_position)
 
-        self.select_one_transmission_filter_logo = tk.Label(self, text = "Select One Transmission Filter", font=('Helvetica', 15), background=theme.PANEL_BG)
+        self.select_one_transmission_filter_logo = tk.Label(self, text = "Transmission filters", font=theme.FONT_HEADING, background=theme.PANEL_BG)
         self.select_one_transmission_filter_logo.place(x=5,y=5, width=920, height=30)
 
-        self.select_one_transmission_filter_logo = tk.Label(self, text = "Select Iris Status and Magnification", font=('Helvetica', 15), background=theme.PANEL_BG)
+        self.select_one_transmission_filter_logo = tk.Label(self, text = "Iris and magnification", font=theme.FONT_HEADING, background=theme.PANEL_BG)
         self.select_one_transmission_filter_logo.place(x=5,y=135, width=920, height=30)
 
         self.left_denkovi_com_port = left_denkovi_com_port
@@ -227,6 +227,21 @@ class TransmissionFilterSelection(tk.Frame):
             self.RightCalibrationChecking = calib_find.FestoStateCalibrationsCheck(self.calibration_settings.right_table)
             self.LeftCalibrationChecking = calib_find.FestoStateCalibrationsCheck(self.calibration_settings.left_table)
 
+        self.select_one_transmission_filter_logo.place(x=30, y=139, width=870, height=24)
+        # Color denotes the optical path; only selected options use a filled accent.
+        for side, color, x in (("left", theme.LEFT_FG, 30), ("right", theme.RIGHT_FG, 510)):
+            tk.Label(self, text=f"{side.upper()} OPTICAL PATH", fg=color, bg=theme.PANEL_BG,
+                     font=(theme.FONT_FAMILY, 9, "bold"), anchor="w").place(x=x, y=34, width=390, height=16)
+        for widget in self.winfo_children():
+            if isinstance(widget, tk.Radiobutton):
+                label = widget.cget("text")
+                if label.endswith(" FILTER"):
+                    widget.config(text="No filter" if label == "NO FILTER" else label.replace(" FILTER", ""))
+                position = widget.place_info()
+                y = int(position["y"])
+                widget.place_configure(y={50: 56, 90: 94, 160: 174}.get(y, y),
+                                       height=42 if y == 160 else 30)
+        theme.modernize_widgets(self)
         self.UpdateFestoStates()
 
     def resolve_calibration_file_path(self, calib_name):
