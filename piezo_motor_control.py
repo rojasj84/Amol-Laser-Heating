@@ -79,12 +79,18 @@ class AgilisControlPanel(tk.Frame):
         #focus_label = tk.Label(self, text = "DEFOCUS", bg=win_color, font=('Agency FB', 14, 'bold')).place(relx=0.7, rely=0.7,anchor="center")
         focus_label = tk.Label(self, text = "SPEED", bg=win_color, font=('Agency FB', 14, 'bold')).place(relx=0.5, rely=0.9,anchor="center")
 
+        if (self.side == "right"):
+            #Populate control buttons for agilis axis
+            self.Laser_Jog_Up = self.AxisControl(self, "UP", "images/up_jog.png", self.bt_scale, frame_width/2, 85, xy_channel, 2, 1, 2, 1, agilis_comport)
+            self.Laser_Jog_Down = self.AxisControl(self, "DOWN", "images/down_jog.png", self.bt_scale, frame_width/2, 205, xy_channel, 2, -1, 2, 1, agilis_comport)
+            self.Laser_Jog_Right = self.AxisControl(self, "RIGHT", "images/right_jog.png", self.bt_scale, frame_width*3/4, 145, xy_channel, 1, -1, 2, 1, agilis_comport)
+            self.Laser_Jog_Left = self.AxisControl(self, "LEFT", "images/left_jog.png", self.bt_scale, frame_width/4, 145, xy_channel, 1, 1, 2, 1, agilis_comport)
+        else:
         #Populate control buttons for agilis axis
-        self.Laser_Jog_Up = self.AxisControl(self, "UP", "images/up_jog.png", self.bt_scale, frame_width/2, 85, xy_channel, 2, 1, 2, 1, agilis_comport)
-        self.Laser_Jog_Down = self.AxisControl(self, "DOWN", "images/down_jog.png", self.bt_scale, frame_width/2, 205, xy_channel, 2, -1, 2, 1, agilis_comport)
-        self.Laser_Jog_Right = self.AxisControl(self, "RIGHT", "images/right_jog.png", self.bt_scale, frame_width*3/4, 145, xy_channel, 1, -1, 2, 1, agilis_comport)
-        self.Laser_Jog_Left = self.AxisControl(self, "LEFT", "images/left_jog.png", self.bt_scale, frame_width/4, 145, xy_channel, 1, 1, 2, 1, agilis_comport)
-
+            self.Laser_Jog_Up = self.AxisControl(self, "UP", "images/up_jog.png", self.bt_scale, frame_width/2, 85, xy_channel, 2, 1, 2, 1, agilis_comport)
+            self.Laser_Jog_Down = self.AxisControl(self, "DOWN", "images/down_jog.png", self.bt_scale, frame_width/2, 205, xy_channel, 2, -1, 2, 1, agilis_comport)
+            self.Laser_Jog_Right = self.AxisControl(self, "RIGHT", "images/right_jog.png", self.bt_scale, frame_width*3/4, 145, xy_channel, 1, 1, 2, 1, agilis_comport)
+            self.Laser_Jog_Left = self.AxisControl(self, "LEFT", "images/left_jog.png", self.bt_scale, frame_width/4, 145, xy_channel, 1, -1, 2, 1, agilis_comport)
 
 
         #Populate contorl buttons for jog speed
