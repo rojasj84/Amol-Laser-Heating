@@ -260,6 +260,7 @@ class PicamDriverCamera:
         except ValueError as error:
             raise CameraError(str(error)) from error
         window = spe.readout_window(regions)
+        self._settle()
         actual = tuple(int(value) for value in self._driver(device.set_roi, *window, 1, 1))
         if actual != window + (1, 1):
             raise CameraError(f"Camera did not accept the readout region {window} (it set {actual})")
@@ -306,11 +307,68 @@ class PicamDriverCamera:
         comms_monitor.log(TARGET, f"Wavelength reference {reference.source.name}")
         return reference.source.name
 
+    SETTLE_SECONDS = 5.0
+    SETTLE_POLL_SECONDS = 0.02
+
+    def _settle(self) -> None:
+        """Wait until the driver agrees that no acquisition is running, then free its buffer.
+
+        The wrapper's own stop waits only 10 ms for the camera to confirm, and
+        gives up quietly or with an error. Left like that, the next command is
+        refused because the driver still considers an acquisition in progress.
+        Errors while stopping are therefore retried until the camera is idle.
+        """
+        device = self._require()
+        deadline = time.monotonic() + self.SETTLE_SECONDS
+        problem = None
+        while True:
+            try:
+                if not device.acquisition_in_progress():
+                    break
+                device.stop_acquisition()
+            except Exception as error:
+                problem = error
+            if time.monotonic() > deadline:
+                detail = f" ({problem})" if problem is not None else ""
+                raise CameraError(f"The camera did not stop acquiring within {self.SETTLE_SECONDS:g} s{detail}. "
+                                  "Disconnecting and reconnecting the camera may be needed")
+            time.sleep(self.SETTLE_POLL_SECONDS)
+        try:
+            device.clear_acquisition()
+        except Exception as error:
+            comms_monitor.log(TARGET, f"Clear acquisition: {error}", ok=False)
+
+    def _read_one_frame(self, timeout_seconds: float):
+        """Single readout. A frame that arrived is kept even if stopping then complains."""
+        device = self._require()
+        frame = None
+        try:
+            self._driver(device.setup_acquisition, mode="snap", nframes=1)
+            self._driver(device.start_acquisition)
+            try:
+                device.wait_for_frame(timeout=timeout_seconds)
+            except Exception as error:
+                if isinstance(error, getattr(device, "TimeoutError", ())):
+                    raise CameraError(f"No frame arrived within {timeout_seconds:g} s") from error
+                raise CameraError(f"Camera driver while waiting for the frame: {error}") from error
+            frame = self._driver(device.read_newest_image)
+        finally:
+            try:
+                self._settle()
+            except CameraError:
+                if frame is None:
+                    raise
+                comms_monitor.log(TARGET, "Camera was slow to stop after the frame", ok=False)
+        if frame is None:
+            raise CameraError("The camera reported a finished acquisition but returned no frame")
+        return frame
+
     def get_exposure_seconds(self) -> float:
         return float(self._driver(self._require().get_exposure))
 
     def set_exposure_seconds(self, seconds: float) -> None:
         seconds = validate_exposure(seconds)
+        self._settle()
         self._driver(self._require().set_exposure, seconds)
         comms_monitor.log(TARGET, f"Exposure {seconds * 1000.0:.2f} ms")
 
@@ -360,11 +418,10 @@ class PicamDriverCamera:
         target = folder / f"{base_name}.spe"
         if target.exists():
             raise CameraError(f"{target.name} already exists")
+        self._settle()
         exposure = self.get_exposure_seconds()
         comms_monitor.log(TARGET, f"Acquire {kind}: {target.name}")
-        frame = self._driver(device.snap, timeout=exposure + self.timeout_seconds)
-        if frame is None:
-            raise CameraError("The camera returned no frame")
+        frame = self._read_one_frame(exposure + self.timeout_seconds)
         reference = self._reference
         try:
             image = spe.assemble_image(frame, self._regions)

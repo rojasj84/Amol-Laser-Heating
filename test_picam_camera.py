@@ -60,6 +60,14 @@ class FakePicamDevice:
         self.closed = False
         self.dark = False
         self.snap_timeouts = []
+        self.running = False
+        self.acquisition = None
+        self.frame = None
+        self.stops_needed = 3
+        self.stops_left = 0
+        self.stop_calls = 0
+        self.stop_raises = True
+        self.never_arrives = False
         left = np.clip(SpeReader().read(LEFT).frame(0), 0, None)
         right = np.clip(SpeReader().read(RIGHT).frame(0), 0, None)
         self.scene = np.zeros((sensor[1], sensor[0]))
@@ -70,6 +78,7 @@ class FakePicamDevice:
         return self.sensor
 
     def set_roi(self, hstart=0, hend=None, vstart=0, vend=None, hbin=1, vbin=1):
+        self._busy("Picam_SetParameterRoisValue")
         self.roi = (hstart, hend, vstart, vend, hbin, vbin)
         return self.roi
 
@@ -77,6 +86,7 @@ class FakePicamDevice:
         return self.exposure
 
     def set_exposure(self, exposure):
+        self._busy("Picam_SetParameterFloatingPointValue")
         self.exposure = exposure
         return exposure
 
@@ -90,13 +100,54 @@ class FakePicamDevice:
     def get_device_info(self):
         return SimpleNamespace(model="PIXIS: 400B", serial_number="2807060001")
 
-    def snap(self, timeout=5.0):
+    # Acquisition follows the real driver: after the frame arrives the camera
+    # still counts as acquiring until it has confirmed the stop, which takes
+    # several stop requests, and it refuses other commands until then.
+    TimeoutError = TimeoutError
+
+    def _busy(self, command):
+        if self.running:
+            raise RuntimeError(f"function '{command}' raised error 20(AcquisitionInProgress)")
+
+    def acquisition_in_progress(self):
+        return self.running
+
+    def setup_acquisition(self, mode="sequence", nframes=100):
+        self._busy("Picam_CommitParameters")
+        self.acquisition = (mode, nframes)
+
+    def start_acquisition(self):
+        self._busy("Picam_StartAcquisition")
+        if self.acquisition != ("snap", 1):
+            raise RuntimeError("acquisition was not set up for one frame")
+        self.running, self.stops_left, self.frame = True, self.stops_needed, None
+
+    def wait_for_frame(self, timeout=20.0):
         self.snap_timeouts.append(timeout)
+        if self.never_arrives:
+            raise TimeoutError()
         x0, x1, y0, y1, _, _ = self.roi
         frame = np.full((y1 - y0, x1 - x0), float(self.DARK))
         if not self.dark:
             frame += self.scene[y0:y1, x0:x1]
-        return np.clip(np.rint(frame), 0, 65535).astype(np.uint16)
+        self.frame = np.clip(np.rint(frame), 0, 65535).astype(np.uint16)
+
+    def read_newest_image(self):
+        frame, self.frame = self.frame, None
+        return frame
+
+    def stop_acquisition(self):
+        self.stop_calls += 1
+        if self.running:
+            self.stops_left -= 1
+            if self.stops_left <= 0:
+                self.running = False
+            elif self.stop_raises:
+                raise RuntimeError("function 'Picam_WaitForAcquisitionUpdate' raised error 27(AcquisitionNotInProgress)")
+
+    def clear_acquisition(self):
+        self._busy("PicamAdvanced_SetAcquisitionBuffer")
+        self.acquisition = None
 
     def close(self):
         self.closed = True
@@ -285,12 +336,45 @@ class PicamDriverCameraTests(unittest.TestCase):
         self.assertFalse(camera.connected)
         self.assertTrue(strict.closed)
         self.camera.connect()
-        self.device.snap = lambda timeout: (_ for _ in ()).throw(RuntimeError("readout timed out"))
-        with self.assertRaisesRegex(CameraError, "Camera driver: readout timed out"):
+        self.device.never_arrives = True
+        with self.assertRaisesRegex(CameraError, "No frame arrived within 7.1 s"):
             self.camera.acquire(self.folder, "a")
         self.assertEqual(list(self.folder.iterdir()), [])
+        self.assertFalse(self.device.running)  # stopped, so the next attempt can start
+        self.device.never_arrives = False
+        self.assertTrue(self.camera.acquire(self.folder, "a").is_file())
         with self.assertRaisesRegex(CameraError, "wavelength reference"):
             PicamDriverCamera(self.folder / "missing.spe", device_factory=lambda: self.device).connect()
+
+    def test_repeated_acquisitions_wait_for_the_camera_to_finish_stopping(self):
+        """The camera keeps reporting 'acquiring' after a frame; every later command must still work."""
+        self.camera.SETTLE_POLL_SECONDS = 0.001
+        self.camera.connect()
+        for index in range(3):
+            self.camera.set_exposure_seconds(0.1 + index)
+            path = self.camera.acquire(self.folder, f"capture_{index}")
+            self.assertEqual(SpeReader().read(path).frames.shape, (1, 70, 1340))
+            self.assertFalse(self.device.running)
+            self.assertIsNone(self.device.acquisition)  # buffer released between captures
+        self.assertGreaterEqual(self.device.stop_calls, 9)
+        other = spe.write_spe(self.folder / "other.spe", np.zeros((40, 1340), dtype=np.uint16),
+                              spe.read_reference(LEFT).sensor_wavelengths_nm,
+                              (SensorRegion(0, 1340, 1, 100, 40, 1),), (1340, 400), 1.0)
+        self.camera.set_reference(other)
+        self.assertEqual(SpeReader().read(self.camera.acquire(self.folder, "after")).frames.shape, (1, 40, 1340))
+
+    def test_camera_that_never_stops_is_reported_and_frame_is_still_saved(self):
+        self.camera.SETTLE_SECONDS, self.camera.SETTLE_POLL_SECONDS = 0.05, 0.001
+        self.camera.connect()
+        self.device.stops_needed = 10 ** 9
+        path = self.camera.acquire(self.folder, "kept")  # the frame arrived, so it is not thrown away
+        self.assertTrue(path.is_file())
+        with self.assertRaisesRegex(CameraError, r"did not stop acquiring within 0.05 s \(.*AcquisitionNotInProgress"):
+            self.camera.acquire(self.folder, "next")
+        with self.assertRaisesRegex(CameraError, "did not stop acquiring"):
+            self.camera.set_exposure_seconds(1.0)
+        self.device.stops_left = 1  # camera recovers
+        self.assertTrue(self.camera.acquire(self.folder, "next").is_file())
 
     def test_missing_driver_package_is_a_clear_error(self):
         with patch.dict("sys.modules", {"pylablib": None}):

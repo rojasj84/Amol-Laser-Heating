@@ -483,6 +483,27 @@ class CameraTabTests(unittest.TestCase):
             self.wait()
         self.assertEqual(self.status(), "shutter stuck")
         self.assertEqual(str(self.panel.acquire_button.cget("state")), "normal")
+        # The whole message, with driver details, is readable and copyable in its own window.
+        dialog = self.panel.error_dialog
+        self.assertTrue(dialog.winfo_exists())
+        shown = dialog.error_text.get("1.0", tk.END)
+        self.assertTrue(shown.startswith("shutter stuck"))
+        self.assertIn("Details for troubleshooting", shown)
+        self.assertIn("CameraError: shutter stuck", shown)
+        dialog.nametowidget(dialog.winfo_children()[0].winfo_children()[1]).invoke()  # Copy text
+        self.assertIn("CameraError: shutter stuck", self.root.clipboard_get())
+        long_message = "Exposure problem: " + "the camera refused this setting because " * 12
+        self.panel._status(long_message, error=True)
+        self.assertIs(self.panel.error_dialog, dialog)  # reused, not stacked
+        self.assertEqual(dialog.error_text.get("1.0", tk.END).strip(), long_message.strip())
+        self.assertGreaterEqual(dialog.winfo_reqwidth(), 420)
+        dialog.destroy()
+        self.panel.exposure_value.set("abc")
+        self.panel.set_exposure_button.invoke()
+        self.assertTrue(self.panel.error_dialog.winfo_exists())
+        self.assertIn("Exposure time must be a number", self.panel.error_dialog.error_text.get("1.0", tk.END))
+        self.panel.error_dialog.destroy()
+        self.panel.exposure_value.set("100")
         self.panel.acquire_button.invoke()
         self.wait()
         self.assertIn("Fitted", self.status())

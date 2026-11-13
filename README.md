@@ -89,6 +89,9 @@ flatfield with the table's file for that state. The background must have the
 same image size and wavelength grid as the capture; otherwise it is rejected
 and the previous fit stays on screen.
 
+Errors open a "Camera message" window with the full text, driver details and a
+**Copy text** button; they are also listed in the Communications Monitor.
+
 Captures are raw 16-bit counts written as SPE 3.0 with the reference's
 wavelength calibration. Unlike the bundled LightField exports they have no
 cosmic-ray removal, and background is removed only by the Background controls

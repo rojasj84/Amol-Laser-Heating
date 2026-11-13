@@ -11,7 +11,9 @@ import threading
 import time
 import tkinter as tk
 from tkinter import filedialog
+import traceback
 
+import comms_monitor
 import theme
 
 
@@ -129,7 +131,7 @@ class CameraControlPanel(tk.Frame):
             try:
                 self._results.put((True, work(), on_success))
             except Exception as error:  # reported on the Tk thread
-                self._results.put((False, error, None))
+                self._results.put((False, (error, traceback.format_exc()), None))
 
     def _submit(self, message, work, on_success):
         """Run work() off the Tk thread; on_success(result) runs on the Tk thread."""
@@ -155,12 +157,13 @@ class CameraControlPanel(tk.Frame):
             widget.configure(state="normal")
         self._show_connection()
         if not ok:
-            self._status(str(result), error=True)
+            error, details = result
+            self._status(str(error), error=True, details=details)
             return
         try:
             on_success(result)
         except Exception as error:
-            self._status(str(error), error=True)
+            self._status(str(error), error=True, details=traceback.format_exc())
 
     def _on_destroy(self, event):
         if event.widget is not self:
@@ -174,8 +177,57 @@ class CameraControlPanel(tk.Frame):
         self._worker.join(timeout=5)
 
     # ---- small helpers -------------------------------------------------
-    def _status(self, message, error=False):
+    def _status(self, message, error=False, details=""):
+        """One-line status; errors also open a window where the whole message can be read."""
         self.status_label.configure(text=message, fg="#FF5252" if error else theme.FG_MUTED)
+        if error:
+            comms_monitor.log("Camera tab", f"Error: {message}", ok=True)
+            self._show_error(message, details)
+
+    def _show_error(self, message, details=""):
+        """Non-blocking window with the full, selectable error text. Reused while open."""
+        self.last_error = message + (f"\n\n{'-' * 40}\nDetails for troubleshooting:\n{details}" if details else "")
+        dialog = getattr(self, "error_dialog", None)
+        if dialog is None or not dialog.winfo_exists():
+            dialog = self.error_dialog = tk.Toplevel(self)
+            dialog.title("Camera message")
+            dialog.configure(background=theme.PANEL_BG)
+            dialog.minsize(420, 220)
+            buttons = tk.Frame(dialog, background=theme.PANEL_BG)
+            buttons.pack(side="bottom", fill="x", padx=12, pady=(0, 12))
+            close = tk.Button(buttons, text="Close", command=dialog.destroy, width=10)
+            close.pack(side="right")
+            copy = tk.Button(buttons, text="Copy text", command=self._copy_error, width=10)
+            copy.pack(side="right", padx=(0, 8))
+            theme.style_button(close, kind="primary")
+            theme.style_button(copy)
+            scrollbar = tk.Scrollbar(dialog)
+            scrollbar.pack(side="right", fill="y", pady=12, padx=(0, 12))
+            dialog.error_text = tk.Text(dialog, wrap="word", font=theme.FONT_BODY, background=theme.TEXT_BG,
+                                        foreground=theme.FG, relief="flat", padx=12, pady=10,
+                                        yscrollcommand=scrollbar.set)
+            dialog.error_text.pack(side="left", fill="both", expand=True, padx=(12, 0), pady=12)
+            dialog.error_text.tag_configure("message", font=(theme.FONT_FAMILY, 11, "bold"), foreground="#FF8A80",
+                                            spacing3=6)
+            dialog.error_text.tag_configure("details", font=("Consolas", 9), foreground=theme.FG_MUTED)
+            scrollbar.configure(command=dialog.error_text.yview)
+            dialog.bind("<Escape>", lambda event: dialog.destroy())
+            top = self.winfo_toplevel()
+            dialog.geometry(f"620x320+{top.winfo_rootx() + 340}+{top.winfo_rooty() + 120}")
+            dialog.transient(top)
+            theme.apply_dark_titlebar(dialog)
+        text = dialog.error_text
+        text.configure(state="normal")
+        text.delete("1.0", tk.END)
+        text.insert(tk.END, message, "message")
+        if details:
+            text.insert(tk.END, f"\n\nDetails for troubleshooting:\n{details}", "details")
+        text.configure(state="disabled")  # still selectable for copying
+        dialog.lift()
+
+    def _copy_error(self):
+        self.clipboard_clear()
+        self.clipboard_append(getattr(self, "last_error", ""))
 
     def _show_connection(self):
         if self.camera.connected:
