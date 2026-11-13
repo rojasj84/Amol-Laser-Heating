@@ -22,13 +22,13 @@ In debug mode:
 - Calibration selection, local SPE-file analysis, plots, and the controls remain
   available. The bundled calibration files provide the initial plots.
 
-- The Camera tab uses a simulated camera instead of LightField. It builds
+- The Camera tab uses a simulated camera instead of the PICAM driver. It builds
   frames from the profile's two calibration files: a dark frame for
   Background, the lamp for Flatfield, and an 1800 K sample for Acquire
   Spectrum. Files are written as `.npz` in the folder for T-fit, and exposure
   scales the counts. `.lfe` loading only records the file name.
 
-The usual Python dependencies are still required (`pythonnet` is not). Debug
+The usual Python dependencies are still required (`pylablib-lightweight` is not). Debug
 mode does not simulate physical motion or laser power. Apart from the simulated
 camera frames above, temperature fitting still uses actual local SPE files.
 

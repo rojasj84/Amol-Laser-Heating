@@ -94,10 +94,21 @@ Other improvements included in the branch:
 
 ## Direct acquisition (added November 2026)
 
-`laser_heating/camera.py` adds a `CameraController` interface with two
-implementations: `LightFieldCamera` (LightField automation through pythonnet)
-and `SimulatedCamera` (debug mode). Both write a file and return its path, so
-captures enter the same reader, validation and fit path as exported files.
+`laser_heating/camera.py` adds a `CameraController` interface with three
+implementations: `PicamDriverCamera` (the default: PICAM driver through
+pylablib, LightField closed), `LightFieldCamera` (LightField automation through
+pythonnet) and `SimulatedCamera` (debug mode). Each writes a file and returns
+its path, so captures enter the same reader, validation and fit path as
+exported files.
+
+The driver has no spectrograph knowledge. `laser_heating/spe.py` reads a
+reference LightField SPE for the per-column wavelengths and the sensor regions,
+parses `.lfe` files for the camera settings the driver accepts, and writes
+captures as SPE 3.0. The camera reads one unbinned rectangle spanning all
+regions; `assemble_image` cuts the regions out (summing if binned). Wavelengths
+are therefore only as current as the reference: moving the grating without
+choosing a new reference gives wrong temperatures, and the app cannot detect
+it.
 `laser_heating/ui/camera.py` runs every camera call on one worker thread and
 applies results on the Tk thread.
 
@@ -108,11 +119,15 @@ with no background set the results are identical to before. Exposure
 normalization is still not applied: measurement and flatfield are compared as
 recorded.
 
-The LightField path is covered by tests against a stand-in experiment object.
-It has **not** been run against LightField or the camera. First checks on the
-instrument: Connect starts LightField; Set changes the exposure shown in
-LightField; an `.lfe` loads; Acquire writes one SPE into the folder for T-fit
-and it is fitted.
+Both hardware paths are covered by tests against stand-in objects only.
+Neither has been run against the camera, and the `.lfe` parser was written from
+the experiment XML embedded in the bundled SPE files, not from a real `.lfe`.
+First checks on the instrument with LightField closed: Connect opens the
+camera; Acquire writes one 1340x70 SPE into the folder for T-fit and it is
+fitted; that SPE opens in LightField with the same wavelength axis and band
+positions as a LightField capture of the same source; an `.lfe` loads and the
+status line lists what was applied (the ADC setting names are the ones most
+likely to be refused).
 
 ## Generic camera contract
 

@@ -77,8 +77,15 @@ class CameraControlPanel(tk.Frame):
         self.unit_menu.place(x=160, y=38, width=66, height=26)
         self.set_exposure_button = button("Set", self.apply_exposure, 230, 38, 80)
 
-        self.load_experiment_button = button("Load LF Exp. Setup file", self.load_experiment, 10, 70, 300)
-        self.experiment_label = label("No experiment file loaded", 10, 98, 300, 18, fg=theme.FG_MUTED)
+        # Only the driver back end needs a wavelength reference.
+        self.has_reference = hasattr(self.camera, "set_reference")
+        self.experiment_name = None
+        self.load_experiment_button = button("Load LF Exp. Setup file", self.load_experiment, 10, 70,
+                                             186 if self.has_reference else 300)
+        if self.has_reference:
+            self.reference_button = button("Wavelength ref.", self.choose_reference, 200, 70, 110)
+        self.experiment_label = label("", 10, 98, 300, 18, fg=theme.FG_MUTED)
+        self._show_setup()
 
         self.acquire_button = button("Acquire Spectrum", self.acquire_spectrum, 10, 120, 300, 30, kind="primary")
 
@@ -283,11 +290,32 @@ class CameraControlPanel(tk.Frame):
             return self.camera.load_experiment(path), self.camera.get_exposure_seconds()
 
         def done(result):
-            name, seconds = result
-            self.experiment_label.configure(text=f"Experiment: {name}", fg=theme.FG)
+            self.experiment_name, seconds = result
+            self._show_setup()
             self._show_exposure(seconds)
-            self._status("Experiment loaded")
+            self._status(getattr(self.camera, "experiment_note", "") or "Experiment loaded")
         self._submit("Loading experiment…", work, done)
+
+    def _show_setup(self):
+        parts = []
+        if self.has_reference:
+            parts.append(f"Ref: {self.camera.reference_name}")
+        if self.experiment_name:
+            parts.append(f"Exp: {self.experiment_name}" if self.has_reference else f"Experiment: {self.experiment_name}")
+        self.experiment_label.configure(text="  ·  ".join(parts) or "No experiment file loaded",
+                                        fg=theme.FG if parts else theme.FG_MUTED)
+
+    def choose_reference(self):
+        """Pick the SPE whose wavelength axis and readout regions the driver uses."""
+        path = filedialog.askopenfilename(parent=self, title="Wavelength reference (LightField SPE)",
+                                          filetypes=[("LightField spectrum", "*.spe"), ("All files", "*.*")])
+        if not path:
+            return
+
+        def done(name):
+            self._show_setup()
+            self._status(f"Wavelengths from {name}")
+        self._submit("Reading reference…", lambda: self.camera.set_reference(path), done)
 
     # ---- measurement ---------------------------------------------------
     def acquire_spectrum(self):

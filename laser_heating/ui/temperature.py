@@ -63,7 +63,7 @@ class TemperaturePanel(tk.Frame):
             return CameraData(frame, left.wavelengths_nm, left.source, left.exposure_seconds)
 
         self.camera = camera or create_camera(self.config_data.camera_control, simulated_lamp,
-                                              settings.temperature_kelvin)
+                                              settings.temperature_kelvin, settings.left_file)
         self.CameraControl = CameraControlPanel(self, self.camera, plots, self.CalibrationFileSelect,
                                                 self.DataFileSelect, 10, 100,
                                                 self.config_data.camera_control.exposure_seconds)

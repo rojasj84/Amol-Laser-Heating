@@ -35,7 +35,7 @@
     "use_filter_table": true
   },
   "camera_control": {
-    "backend": "lightfield",
+    "backend": "picam",
     "exposure_seconds": 0.1,
     "acquire_timeout_seconds": 30
   },

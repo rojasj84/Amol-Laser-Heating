@@ -1,5 +1,6 @@
 """Camera control: services, background subtraction, and the real Camera tab in debug mode."""
 from dataclasses import replace
+import gc
 import json
 from pathlib import Path
 import tempfile
@@ -15,7 +16,7 @@ import comms_monitor
 import hardware_mode
 from laser_heating.analysis import fit_temperature, subtract_background
 from laser_heating.application import HeatingApplication
-from laser_heating.camera import CameraError, LightFieldCamera, SimulatedCamera, create_camera
+from laser_heating.camera import CameraError, LightFieldCamera, PicamDriverCamera, SimulatedCamera, create_camera
 from laser_heating.config import APP_ROOT, ApplicationConfig, CameraControlSettings
 from laser_heating.models import CameraData
 from laser_heating.readers import ReaderRegistry
@@ -63,7 +64,8 @@ class ReaderAndConfigTests(unittest.TestCase):
 
     def test_camera_control_settings_load_and_validate(self):
         self.assertEqual(ApplicationConfig.load(DEFAULT_CONFIG).camera_control,
-                         CameraControlSettings("lightfield", 0.1, 30))
+                         CameraControlSettings("picam", 0.1, 30))
+        self.assertEqual(CameraControlSettings(backend="lightfield").backend, "lightfield")
         raw = json.loads(DEFAULT_CONFIG.read_text(encoding="utf-8"))
         del raw["camera_control"]  # profiles written before this feature
         for key in ("root", "left_table", "right_table", "left_file", "right_file"):
@@ -72,7 +74,8 @@ class ReaderAndConfigTests(unittest.TestCase):
             path = Path(folder) / "old.json"
             path.write_text(json.dumps(raw), encoding="utf-8")
             self.assertEqual(ApplicationConfig.load(path).camera_control, CameraControlSettings())
-        for bad in ({"backend": "picam"}, {"exposure_seconds": 0}, {"acquire_timeout_seconds": True}):
+        for bad in ({"backend": "epics"}, {"exposure_seconds": 0}, {"acquire_timeout_seconds": True},
+                    {"camera_serial": 2807060001}):
             with self.assertRaises(ValueError):
                 CameraControlSettings(**bad)
 
@@ -116,9 +119,15 @@ class SimulatedCameraTests(unittest.TestCase):
         self.assertIsInstance(create_camera(settings, lambda: self.template, 2255), SimulatedCamera)
         hardware_mode.configure(debug=False)
         try:
-            camera = create_camera(settings, lambda: self.template, 2255)
+            camera = create_camera(CameraControlSettings(backend="lightfield"), lambda: self.template, 2255)
             self.assertIsInstance(camera, LightFieldCamera)
             self.assertFalse(camera.connected)  # LightField is not started until asked
+            camera = create_camera(settings, lambda: self.template, 2255, "calibration.spe")
+            self.assertIsInstance(camera, PicamDriverCamera)
+            self.assertFalse(camera.connected)  # the driver is not loaded until asked
+            self.assertEqual(camera.reference_name, "calibration.spe")
+            with self.assertRaisesRegex(ValueError, "reference_file"):
+                create_camera(settings, lambda: self.template, 2255)
         finally:
             hardware_mode.configure(debug=True)
 
@@ -250,6 +259,9 @@ class CameraTabTests(unittest.TestCase):
     """The real application in debug mode with the bundled PIXIS calibration files."""
 
     def setUp(self):
+        # Tk objects left by earlier tests must be collected on this thread, not later on
+        # the camera worker thread (these tests pump events without running mainloop).
+        gc.collect()
         self.temp = tempfile.TemporaryDirectory()
         self.folder = Path(self.temp.name)
         self.config = replace(ApplicationConfig.load(DEFAULT_CONFIG), acquisition_folder=self.folder)

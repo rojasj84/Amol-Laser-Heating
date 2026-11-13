@@ -6,5 +6,7 @@ Pillow==12.2.0
 pyserial==3.5
 watchdog==6.0.0
 python-dateutil==2.9.0.post0
-# Camera tab on the instrument computer only (LightField automation); not needed for --debug.
-pythonnet==3.0.5
+# Camera tab on the instrument computer only (PICAM driver); not needed for --debug.
+pylablib-lightweight==1.4.3
+# Only for "backend": "lightfield" in camera_control:
+# pythonnet==3.0.5

@@ -40,7 +40,8 @@ python -m pip install -r requirements.txt
 | ROI editing | `laser_heating/ui/roi.py` |
 | Manual loading and automatic folder fitting | `laser_heating/ui/files.py` |
 | Camera tab: exposure, acquire, background, flatfield | `laser_heating/ui/camera.py` |
-| LightField automation and the simulated camera | `laser_heating/camera.py` |
+| PICAM driver, LightField automation and simulated camera back ends | `laser_heating/camera.py` |
+| Reference SPE, `.lfe` settings, SPE writing | `laser_heating/spe.py` |
 | Calibration fields and optical filter controls | `laser_heating/ui/calibration.py` |
 | Calibration CSV lookup and filename resolution | `import_calibration.py` |
 | Existing physical instrument commands | `agilis_control.py`, `denkovi_serial.py`, `laser_communication.py` |
@@ -51,16 +52,28 @@ vendored `T-rax-develop/` tree are not part of application startup.
 
 ## Camera tab (direct PIXIS control)
 
-The **Camera** tab drives the PIXIS through LightField's automation interface,
-so LightField must be installed (`LIGHTFIELD_ROOT` set) along with `pythonnet`.
-LightField is started by **Connect** or by the first camera action, not at
-program start. Close a manually opened LightField first; only one program can
-own the camera.
+The **Camera** tab talks to the PIXIS through its PICAM driver, with
+LightField **closed** (only one program can own the camera). It needs the PICAM
+runtime that LightField installs and the `pylablib-lightweight` package. The
+camera is opened by **Connect** or by the first camera action, not at program
+start.
+
+The driver knows nothing about the spectrograph, so wavelengths come from a
+**reference SPE**: any LightField spectrum saved at the current grating
+position. Its wavelength axis and its readout regions (the two 35-row bands in
+the bundled files) are reused for every capture. The default reference is the
+left calibration file; **Wavelength ref.** picks another, and the line below
+the button names the one in use. **If the grating is moved, save one spectrum
+from LightField and select it as the new reference**, otherwise the fitted
+temperatures will be wrong. The app reads one sensor rectangle covering all
+regions and cuts the regions out, so saved images have the same layout as
+LightField's.
 
 | Control | Behavior |
 | --- | --- |
-| Exposure + unit (µs / ms / s), **Set** | Value is shown as `%.2f` and sent to LightField. Changing the unit reinterprets the number. |
-| **Load LF Exp. Setup file** | Loads a `.lfe` experiment *by name* from LightField's own Experiments folder, then shows that experiment's exposure. |
+| Exposure + unit (µs / ms / s), **Set** | Value is shown as `%.2f` and sent to the camera. Changing the unit reinterprets the number. |
+| **Load LF Exp. Setup file** | Reads a `.lfe` file and applies what the driver understands: exposure, readout regions, ADC speed, gain and quality. The status line lists what was applied or refused. Spectrograph, online-correction and file-naming settings are ignored. |
+| **Wavelength ref.** | Chooses the reference SPE described above. |
 | **Acquire Spectrum** | Captures with the exposure shown and fits it like a manually selected file. |
 | Background **Collect / Save / Load / Clear** | The mean background frame is subtracted from every measurement. Block the light before collecting. |
 | Flatfield **Left / Right**, **Ref T (K)**, **Collect / Save / Load** | The capture becomes that side's calibration file and Ref T its calibration temperature. |
@@ -76,8 +89,16 @@ flatfield with the table's file for that state. The background must have the
 same image size and wavelength grid as the capture; otherwise it is rejected
 and the previous fit stays on screen.
 
-`camera_control` in the JSON profile sets the starting exposure and how long to
-wait for LightField beyond the exposure itself.
+Captures are raw 16-bit counts written as SPE 3.0 with the reference's
+wavelength calibration. Unlike the bundled LightField exports they have no
+cosmic-ray removal, and background is removed only by the Background controls
+here.
+
+`camera_control` in the JSON profile sets the starting exposure, the readout
+timeout beyond the exposure, and optionally `reference_file`, `camera_serial`
+and `picam_dll_folder` (if `picam.dll` is not in the default Princeton
+Instruments folder). `"backend": "lightfield"` selects the earlier LightField
+automation link instead, which needs `pythonnet` and a running LightField.
 
 ## Another camera or ROI
 

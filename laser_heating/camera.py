@@ -1,8 +1,10 @@
 """Camera acquisition services. No widgets here; every call may block.
 
-``LightFieldCamera`` drives Princeton Instruments LightField through its
-automation interface, so the spectrograph wavelength calibration is saved in
-each SPE file. ``SimulatedCamera`` is used in debug mode and writes NPZ files.
+``PicamDriverCamera`` talks to the camera through the PICAM driver (LightField
+closed). The driver does not know the spectrograph, so a reference SPE supplies
+the wavelength axis and readout regions. ``LightFieldCamera`` drives LightField
+through its automation interface instead. ``SimulatedCamera`` is used in debug
+mode and writes NPZ files.
 """
 import os
 from pathlib import Path
@@ -16,6 +18,7 @@ import numpy as np
 import comms_monitor
 import hardware_mode
 from TemperatureFit.TemperatureFitting import Temperature_Measurement
+from . import spe
 from .models import CameraData
 
 CAPTURE_KINDS = ("spectrum", "background", "flatfield")
@@ -175,6 +178,202 @@ class LightFieldCamera:
         return target
 
 
+def _open_picam_device(serial_number=None, dll_folder=None):
+    """Open the camera with pylablib's PICAM wrapper (imported only when needed)."""
+    try:
+        import pylablib
+        from pylablib.devices import PrincetonInstruments
+    except ImportError as error:
+        raise CameraError("The pylablib package is required: "
+                          "python -m pip install pylablib-lightweight") from error
+    if dll_folder:
+        pylablib.par["devices/dlls/picam"] = str(dll_folder)
+    try:
+        return PrincetonInstruments.PicamCamera(serial_number)
+    except Exception as error:
+        raise CameraError(f"Could not open the camera through PICAM ({error}). "
+                          "Close LightField if it is running") from error
+
+
+def _spaced(text: str) -> str:
+    """LowNoise -> Low Noise (LightField files and the driver spell enums differently)."""
+    return "".join(" " + letter if letter.isupper() and index else letter for index, letter in enumerate(text))
+
+
+class PicamDriverCamera:
+    """PIXIS control through the PICAM driver; captures are written as SPE 3.0.
+
+    One sensor rectangle covering every readout region is read unbinned and
+    the regions are cut out of it, so the saved image matches LightField's.
+    """
+
+    name = "PICAM driver"
+
+    def __init__(self, reference_path, serial_number=None, dll_folder=None, timeout_seconds: float = 30.0,
+                 device_factory: Callable[[], object] | None = None):
+        self._reference_path = Path(reference_path)
+        self._device_factory = device_factory or (lambda: _open_picam_device(serial_number, dll_folder))
+        self._device = None
+        self._reference = None
+        self._regions = ()
+        self._model = "PIXIS"
+        self.timeout_seconds = float(timeout_seconds)
+        self.experiment_note = ""
+
+    @property
+    def connected(self) -> bool:
+        return self._device is not None
+
+    @property
+    def reference_name(self) -> str:
+        return (self._reference.source if self._reference is not None else self._reference_path).name
+
+    def _driver(self, action, *arguments, **options):
+        try:
+            return action(*arguments, **options)
+        except CameraError:
+            raise
+        except Exception as error:
+            raise CameraError(f"Camera driver: {error}") from error
+
+    def _require(self):
+        if self._device is None:
+            raise CameraError("Camera is not connected")
+        return self._device
+
+    def _load_reference(self, path):
+        try:
+            return spe.read_reference(path)
+        except ValueError as error:
+            raise CameraError(str(error)) from error
+
+    def _apply_regions(self, regions) -> None:
+        """Validate against the sensor and the reference, then set the readout window."""
+        device, reference = self._require(), self._reference
+        size = tuple(int(value) for value in self._driver(device.get_detector_size))
+        if size != (reference.sensor_width, reference.sensor_height):
+            raise CameraError(f"{reference.source.name} is from a {reference.sensor_width}x{reference.sensor_height} "
+                              f"sensor, but this camera is {size[0]}x{size[1]}")
+        try:
+            spe.validate_regions(regions, *size)
+            spe.region_wavelengths(reference.sensor_wavelengths_nm, regions)
+        except ValueError as error:
+            raise CameraError(str(error)) from error
+        window = spe.readout_window(regions)
+        actual = tuple(int(value) for value in self._driver(device.set_roi, *window, 1, 1))
+        if actual != window + (1, 1):
+            raise CameraError(f"Camera did not accept the readout region {window} (it set {actual})")
+        self._regions = tuple(regions)
+
+    def connect(self) -> None:
+        if self._device is not None:
+            return
+        if self._reference is None:
+            self._reference = self._load_reference(self._reference_path)
+        self._device = self._device_factory()
+        try:
+            self._apply_regions(self._regions or self._reference.setup.regions)
+            try:
+                self._model = str(self._device.get_device_info().model)
+            except Exception:
+                pass
+        except Exception:
+            self.close()
+            raise
+        comms_monitor.log(TARGET, f"PICAM camera opened; wavelengths from {self.reference_name}")
+
+    def close(self) -> None:
+        device, self._device = self._device, None
+        if device is not None:
+            try:
+                device.close()
+            except Exception as error:
+                comms_monitor.log(TARGET, f"PICAM close: {error}", ok=False)
+
+    def set_reference(self, path: str | Path) -> str:
+        """Use another SPE for the wavelength axis and readout regions."""
+        reference = self._load_reference(path)
+        previous = self._reference, self._regions
+        self._reference = reference
+        if self._device is None:
+            self._regions = ()
+        else:
+            try:
+                self._apply_regions(reference.setup.regions)
+            except Exception:
+                self._reference, self._regions = previous
+                raise
+        comms_monitor.log(TARGET, f"Wavelength reference {reference.source.name}")
+        return reference.source.name
+
+    def get_exposure_seconds(self) -> float:
+        return float(self._driver(self._require().get_exposure))
+
+    def set_exposure_seconds(self, seconds: float) -> None:
+        seconds = validate_exposure(seconds)
+        self._driver(self._require().set_exposure, seconds)
+        comms_monitor.log(TARGET, f"Exposure {seconds * 1000.0:.2f} ms")
+
+    def _set_attribute(self, name, values) -> bool:
+        for value in values:
+            try:
+                self._device.set_attribute_value(name, value, error_on_missing=True)
+                return True
+            except Exception:
+                continue
+        return False
+
+    def load_experiment(self, path: str | Path) -> str:
+        """Apply the settings in a LightField .lfe that the driver understands."""
+        self._require()
+        size = (self._reference.sensor_width, self._reference.sensor_height)
+        try:
+            setup = spe.read_experiment_file(path, size)
+        except ValueError as error:
+            raise CameraError(str(error)) from error
+        applied, refused = [], []
+        if setup.regions:
+            self._apply_regions(setup.regions)
+            applied.append(f"{len(setup.regions)} region{'s' if len(setup.regions) != 1 else ''}")
+        if setup.exposure_seconds is not None:
+            self.set_exposure_seconds(setup.exposure_seconds)
+            applied.append("exposure")
+        for label, name, value in (("ADC speed", "ADC Speed", setup.adc_speed_mhz),
+                                   ("gain", "ADC Analog Gain", setup.adc_analog_gain),
+                                   ("ADC quality", "ADC Quality", setup.adc_quality)):
+            if value is None:
+                continue
+            values = (value, _spaced(value)) if isinstance(value, str) else (value,)
+            (applied if self._set_attribute(name, values) else refused).append(label)
+        if not applied and not refused:
+            raise CameraError(f"{Path(path).name} contains no camera settings")
+        self.experiment_note = "Applied " + (", ".join(applied) or "nothing")
+        if refused:
+            self.experiment_note += f"; camera refused {', '.join(refused)}"
+        comms_monitor.log(TARGET, f"Experiment '{Path(path).stem}': {self.experiment_note}")
+        return Path(path).stem
+
+    def acquire(self, folder: str | Path, base_name: str, kind: str = "spectrum") -> Path:
+        device = self._require()
+        folder = Path(folder)
+        folder.mkdir(parents=True, exist_ok=True)
+        target = folder / f"{base_name}.spe"
+        if target.exists():
+            raise CameraError(f"{target.name} already exists")
+        exposure = self.get_exposure_seconds()
+        comms_monitor.log(TARGET, f"Acquire {kind}: {target.name}")
+        frame = self._driver(device.snap, timeout=exposure + self.timeout_seconds)
+        if frame is None:
+            raise CameraError("The camera returned no frame")
+        reference = self._reference
+        try:
+            image = spe.assemble_image(frame, self._regions)
+            return spe.write_spe(target, image, reference.sensor_wavelengths_nm, self._regions,
+                                 (reference.sensor_width, reference.sensor_height), exposure, self._model)
+        except (OSError, ValueError) as error:
+            raise CameraError(f"Could not save {target.name}: {error}") from error
+
+
 class SimulatedCamera:
     """Debug-mode camera: plausible frames on the profile's wavelength grid."""
 
@@ -250,10 +449,17 @@ class SimulatedCamera:
         return target
 
 
-def create_camera(settings, template_loader: Callable[[], CameraData], reference_temperature: float):
+def create_camera(settings, template_loader: Callable[[], CameraData], reference_temperature: float,
+                  default_reference: str | Path | None = None):
     """Simulated in debug mode; otherwise the back end named in the profile."""
     if hardware_mode.is_debug():
         return SimulatedCamera(template_loader, reference_temperature, settings.exposure_seconds)
+    if settings.backend == "picam":
+        reference = settings.reference_file or default_reference
+        if reference is None:
+            raise ValueError("camera_control needs a reference_file for the PICAM back end")
+        return PicamDriverCamera(reference, settings.camera_serial, settings.picam_dll_folder,
+                                 settings.acquire_timeout_seconds)
     if settings.backend == "lightfield":
         return LightFieldCamera(timeout_seconds=settings.acquire_timeout_seconds)
     raise ValueError(f"Unknown camera back end {settings.backend!r}")

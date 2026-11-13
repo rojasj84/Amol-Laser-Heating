@@ -61,15 +61,26 @@ class CalibrationSettings:
 
 @dataclass(frozen=True)
 class CameraControlSettings:
-    """Direct acquisition. Debug mode always uses the simulated camera."""
+    """Direct acquisition. Debug mode always uses the simulated camera.
 
-    backend: str = "lightfield"
+    "picam" uses the camera driver with LightField closed; reference_file is
+    the SPE that supplies wavelengths and readout regions (default: the left
+    calibration file). "lightfield" drives LightField through automation.
+    """
+
+    backend: str = "picam"
     exposure_seconds: float = 0.1
     acquire_timeout_seconds: float = 30.0
+    reference_file: Path | None = None
+    camera_serial: str | None = None
+    picam_dll_folder: str | None = None
 
     def __post_init__(self) -> None:
-        if self.backend != "lightfield":
+        if self.backend not in ("picam", "lightfield"):
             raise ValueError(f"Unknown camera_control backend {self.backend!r}")
+        for name in ("camera_serial", "picam_dll_folder"):
+            if getattr(self, name) is not None and not isinstance(getattr(self, name), str):
+                raise ValueError(f"camera_control {name} must be text")
         for name in ("exposure_seconds", "acquire_timeout_seconds"):
             value = getattr(self, name)
             if isinstance(value, bool) or not isinstance(value, (int, float)) \
@@ -104,8 +115,11 @@ class ApplicationConfig:
         for key in ("root", "left_table", "right_table", "left_file", "right_file"):
             if key in calibration:
                 calibration[key] = (path.parent / calibration[key]).resolve()
+        camera_control = dict(raw.get("camera_control", {}))
+        if camera_control.get("reference_file"):
+            camera_control["reference_file"] = (path.parent / camera_control["reference_file"]).resolve()
         folder = (path.parent / raw["acquisition_folder"]).resolve() if "acquisition_folder" in raw else APP_ROOT / "TemperatureFit"
         measurement = (path.parent / raw["initial_measurement"]).resolve() if raw.get("initial_measurement") else None
         return cls(CameraProfile(**camera), HardwareSettings(**raw.get("hardware", {})),
                    CalibrationSettings(**calibration), folder, measurement,
-                   CameraControlSettings(**raw.get("camera_control", {})))
+                   CameraControlSettings(**camera_control))

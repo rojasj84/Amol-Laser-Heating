@@ -57,7 +57,7 @@ class ConnectionSettingsWindow(tk.Toplevel):
 class HeatingApplication:
     """Own configuration, panels, and the lifetime of all auxiliary windows."""
 
-    def __init__(self, root, config=None, readers=None):
+    def __init__(self, root, config=None, readers=None, camera=None):
         self.root = root
         self.config = config or ApplicationConfig()
         self.readers = readers or ReaderRegistry.defaults()
@@ -72,7 +72,7 @@ class HeatingApplication:
         root.wm_iconphoto(False, self.icon)
         hardware = self.config.hardware
         self.temperature = TemperaturePanel(root, 0, 32, hardware.left_relay_port,
-                                            hardware.right_relay_port, self.config, self.readers)
+                                            hardware.right_relay_port, self.config, self.readers, camera)
         self._build_menu()
         # Preserve the existing startup layout; other windows are built on demand.
         self.open_window("piezo")
