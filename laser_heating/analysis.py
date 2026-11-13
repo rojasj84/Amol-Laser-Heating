@@ -12,6 +12,18 @@ def extract_spectrum(data: CameraData, roi: RegionOfInterest, frame_index: int =
     return ExtractedSpectrum(data.wavelengths_nm[roi.x_start:roi.x_end], counts)
 
 
+def subtract_background(data: CameraData, background: CameraData) -> CameraData:
+    """Subtract the mean background frame from every frame of a capture."""
+    if (data.width, data.height) != (background.width, background.height):
+        raise ValueError(f"Background is {background.width}x{background.height} pixels, "
+                         f"but {data.source.name} is {data.width}x{data.height}")
+    if not np.allclose(data.wavelengths_nm, background.wavelengths_nm, rtol=1e-7, atol=1e-5):
+        raise ValueError("Background and capture wavelength grids differ; collect a new background")
+    dark = np.mean(np.asarray(background.frames, dtype=float), axis=0)
+    return CameraData(np.asarray(data.frames, dtype=float) - dark, data.wavelengths_nm,
+                      data.source, data.exposure_seconds)
+
+
 def fit_temperature(measurement: CameraData, calibration: CameraData, roi: RegionOfInterest,
                     calibration_temperature: float, frame_index: int = 0) -> TemperatureResult:
     measured = extract_spectrum(measurement, roi, frame_index)

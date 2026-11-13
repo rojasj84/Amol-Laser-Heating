@@ -55,6 +55,17 @@ class ReaderRegistry:
             raise ValueError(f"Reader {reader_name!r} supports {', '.join(reader.extensions)}, not {path.suffix}")
         return reader.read(path)
 
+    def read_by_suffix(self, path: str | Path, preferred: str | None = None) -> CameraData:
+        """Read with the preferred reader if it fits, else any reader for the suffix."""
+        path = Path(path)
+        suffix = path.suffix.lower()
+        names = ([preferred] if preferred else []) + list(self._readers)
+        for name in names:
+            reader = self.get(name)
+            if suffix in reader.extensions:
+                return reader.read(path)
+        raise ValueError(f"No camera reader supports {path.suffix or 'files without an extension'}")
+
     @classmethod
     def defaults(cls) -> "ReaderRegistry":
         registry = cls()

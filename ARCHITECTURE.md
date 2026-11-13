@@ -92,6 +92,28 @@ Other improvements included in the branch:
 - Generated Python caches are ignored and removed from version control.
   Historical source/data and T-Rax attribution remain in place.
 
+## Direct acquisition (added November 2026)
+
+`laser_heating/camera.py` adds a `CameraController` interface with two
+implementations: `LightFieldCamera` (LightField automation through pythonnet)
+and `SimulatedCamera` (debug mode). Both write a file and return its path, so
+captures enter the same reader, validation and fit path as exported files.
+`laser_heating/ui/camera.py` runs every camera call on one worker thread and
+applies results on the Tk thread.
+
+Background subtraction is `analysis.subtract_background`, applied in
+`PlotGraphs.update_graphs` to measurements and to raw flatfields collected in
+the Camera tab. `fit_temperature` and the Planck equations are unchanged, and
+with no background set the results are identical to before. Exposure
+normalization is still not applied: measurement and flatfield are compared as
+recorded.
+
+The LightField path is covered by tests against a stand-in experiment object.
+It has **not** been run against LightField or the camera. First checks on the
+instrument: Connect starts LightField; Set changes the exposure shown in
+LightField; an `.lfe` loads; Acquire writes one SPE into the folder for T-fit
+and it is fitted.
+
 ## Generic camera contract
 
 Every reader returns `CameraData` with:

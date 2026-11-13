@@ -59,6 +59,24 @@ class CalibrationSettings:
             raise ValueError("use_filter_table must be a JSON boolean")
 
 
+@dataclass(frozen=True)
+class CameraControlSettings:
+    """Direct acquisition. Debug mode always uses the simulated camera."""
+
+    backend: str = "lightfield"
+    exposure_seconds: float = 0.1
+    acquire_timeout_seconds: float = 30.0
+
+    def __post_init__(self) -> None:
+        if self.backend != "lightfield":
+            raise ValueError(f"Unknown camera_control backend {self.backend!r}")
+        for name in ("exposure_seconds", "acquire_timeout_seconds"):
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, (int, float)) \
+                    or not math.isfinite(value) or value <= 0:
+                raise ValueError(f"camera_control {name} must be a positive number")
+
+
 @dataclass
 class ApplicationConfig:
     camera: CameraProfile = field(default_factory=CameraProfile)
@@ -66,6 +84,7 @@ class ApplicationConfig:
     calibration: CalibrationSettings = field(default_factory=CalibrationSettings)
     acquisition_folder: Path = APP_ROOT / "TemperatureFit"
     initial_measurement: Path | None = None
+    camera_control: CameraControlSettings = field(default_factory=CameraControlSettings)
 
     @classmethod
     def load(cls, path: str | Path) -> "ApplicationConfig":
@@ -88,4 +107,5 @@ class ApplicationConfig:
         folder = (path.parent / raw["acquisition_folder"]).resolve() if "acquisition_folder" in raw else APP_ROOT / "TemperatureFit"
         measurement = (path.parent / raw["initial_measurement"]).resolve() if raw.get("initial_measurement") else None
         return cls(CameraProfile(**camera), HardwareSettings(**raw.get("hardware", {})),
-                   CalibrationSettings(**calibration), folder, measurement)
+                   CalibrationSettings(**calibration), folder, measurement,
+                   CameraControlSettings(**raw.get("camera_control", {})))

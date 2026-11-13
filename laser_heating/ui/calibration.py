@@ -70,6 +70,16 @@ class CalibrationFileSelection(tk.Frame):
         self.right_status_label.place(x=10, y=270, width=300, height=22)
 
 
+    # Raw flatfields come from the Camera tab and need background subtraction.
+    # Tracking by path means choosing any other calibration file clears it.
+    def mark_raw_flatfield(self, file_path):
+        if not hasattr(self, "_raw_flatfields"):
+            self._raw_flatfields = set()
+        self._raw_flatfields.add(str(Path(file_path).resolve()))
+
+    def is_raw_flatfield(self, file_path):
+        return bool(file_path) and str(Path(file_path).resolve()) in getattr(self, "_raw_flatfields", ())
+
     def update_status(self, left_exists, right_exists):
         if left_exists:
             self.left_status_label.config(text="Left Calibration File: OK", fg="#4CAF50")

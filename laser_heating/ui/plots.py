@@ -4,7 +4,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import theme
-from laser_heating.analysis import fit_temperature
+from laser_heating.analysis import fit_temperature, subtract_background
 from laser_heating.config import CameraProfile
 from laser_heating.readers import ReaderRegistry
 
@@ -59,6 +59,11 @@ class PlotGraphs(tk.Frame):
         self.left_roi = self.camera_profile.left_roi
         self.right_roi = self.camera_profile.right_roi
         self.current_frame_index = 0
+        # Background is subtracted from every measurement. A calibration is
+        # only subtracted when it is a raw flatfield collected through the
+        # Camera tab; exported calibration files are used as saved.
+        self.background = None
+        self.calibration_needs_background = {"left": False, "right": False}
 
         self.left_calibration_temperature = calibration_temperature
         self.right_calibration_temperature = calibration_temperature
@@ -71,21 +76,40 @@ class PlotGraphs(tk.Frame):
         plt.close(self.fig)
         super().destroy()
 
-    def set_capture(self, measurement, left_calibration, right_calibration, left_temperature, right_temperature):
+    def set_capture(self, measurement, left_calibration, right_calibration, left_temperature, right_temperature,
+                    calibration_needs_background=None):
         """Replace the displayed capture only if both sides can be fitted."""
         names = ("data_file", "left_calibration_file", "right_calibration_file",
-                 "left_calibration_temperature", "right_calibration_temperature", "current_frame_index")
+                 "left_calibration_temperature", "right_calibration_temperature", "current_frame_index",
+                 "calibration_needs_background")
         previous = {name: getattr(self, name) for name in names}
         self.data_file = measurement
         self.left_calibration_file, self.right_calibration_file = left_calibration, right_calibration
         self.left_calibration_temperature, self.right_calibration_temperature = left_temperature, right_temperature
         self.current_frame_index = 0
+        flags = calibration_needs_background or {}
+        self.calibration_needs_background = {side: bool(flags.get(side, False)) for side in ("left", "right")}
         try:
             self.update_graphs()
         except Exception:
             for name, value in previous.items():
                 setattr(self, name, value)
             raise
+
+    def set_background(self, background):
+        """Use, replace, or clear (None) the background; keep the old one if the fit fails."""
+        previous = self.background
+        self.background = background
+        try:
+            self.update_graphs()
+        except Exception:
+            self.background = previous
+            raise
+
+    def _without_background(self, capture, apply=True):
+        if self.background is None or not apply:
+            return capture
+        return subtract_background(capture, self.background)
 
     def prev_frame(self):
         if hasattr(self, 'data_file') and self.data_file.frame_count > 1:
@@ -101,15 +125,22 @@ class PlotGraphs(tk.Frame):
 
 
     def load_capture(self, path):
-        capture = self.readers.read(path, self.camera_profile.reader)
+        # The profile's reader is preferred; captures made by the Camera tab
+        # may use another registered format (the simulated camera writes NPZ).
+        capture = self.readers.read_by_suffix(path, self.camera_profile.reader)
         self.camera_profile.validate_data(capture)
         return capture
 
     def update_graphs(self):
         self.current_frame_index = min(self.current_frame_index, self.data_file.frame_count - 1)
-        left = fit_temperature(self.data_file, self.left_calibration_file, self.left_roi,
+        measurement = self._without_background(self.data_file)
+        left_calibration = self._without_background(self.left_calibration_file,
+                                                    self.calibration_needs_background["left"])
+        right_calibration = self._without_background(self.right_calibration_file,
+                                                     self.calibration_needs_background["right"])
+        left = fit_temperature(measurement, left_calibration, self.left_roi,
                                self.left_calibration_temperature, self.current_frame_index)
-        right = fit_temperature(self.data_file, self.right_calibration_file, self.right_roi,
+        right = fit_temperature(measurement, right_calibration, self.right_roi,
                                 self.right_calibration_temperature, self.current_frame_index)
         self.frame_status_label.config(text=f"Frame: {self.current_frame_index + 1} / {self.data_file.frame_count}")
         self.btn_prev_frame.config(state="normal" if self.current_frame_index > 0 else "disabled")

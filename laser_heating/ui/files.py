@@ -82,6 +82,10 @@ class DataFileHandling(tk.Frame):
             token = self._watch_generation if generation is None else generation
             self._new_spe_file_queue.put((token, str(Path(path).resolve())))
 
+    def ignore_capture(self, file_path):
+        """Captures made by the Camera tab are handled there, not by the watcher."""
+        self._processed_spe_files.add(str(Path(file_path).resolve()))
+
     def process_new_spe_file(self, file_path):
         try:
             if not self.calibration_files.has_valid_calibration():
@@ -97,8 +101,14 @@ class DataFileHandling(tk.Frame):
             left_calibration = self.plots.load_capture(left_path)
             right_calibration = self.plots.load_capture(right_path)
             measurement = self.plots.load_capture(file_path)
-            self.plots.set_capture(measurement, left_calibration, right_calibration,
-                                   left_temperature, right_temperature)
+            is_raw = getattr(self.calibration_files, "is_raw_flatfield", lambda path: False)
+            needs_background = {"left": is_raw(left_path), "right": is_raw(right_path)}
+            if any(needs_background.values()):
+                self.plots.set_capture(measurement, left_calibration, right_calibration,
+                                       left_temperature, right_temperature, needs_background)
+            else:
+                self.plots.set_capture(measurement, left_calibration, right_calibration,
+                                       left_temperature, right_temperature)
             self.selected_lightfield_spectra.delete("1.0", tk.END)
             self.selected_lightfield_spectra.insert(tk.END, file_path)
             self.autofit_status.config(text=f"Fitted: {Path(file_path).name}")

@@ -34,5 +34,10 @@
     "temperature_kelvin": 2255,
     "use_filter_table": true
   },
+  "camera_control": {
+    "backend": "lightfield",
+    "exposure_seconds": 0.1,
+    "acquire_timeout_seconds": 30
+  },
   "acquisition_folder": "../TemperatureFit"
 }

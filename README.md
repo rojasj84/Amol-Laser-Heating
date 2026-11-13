@@ -39,6 +39,8 @@ python -m pip install -r requirements.txt
 | Plotting and frame navigation | `laser_heating/ui/plots.py` |
 | ROI editing | `laser_heating/ui/roi.py` |
 | Manual loading and automatic folder fitting | `laser_heating/ui/files.py` |
+| Camera tab: exposure, acquire, background, flatfield | `laser_heating/ui/camera.py` |
+| LightField automation and the simulated camera | `laser_heating/camera.py` |
 | Calibration fields and optical filter controls | `laser_heating/ui/calibration.py` |
 | Calibration CSV lookup and filename resolution | `import_calibration.py` |
 | Existing physical instrument commands | `agilis_control.py`, `denkovi_serial.py`, `laser_communication.py` |
@@ -46,6 +48,36 @@ python -m pip install -r requirements.txt
 `main.py` is the launcher. `acton_pixis.py` keeps the original class imports
 working while implementation lives in the package. `deprecated/` and the
 vendored `T-rax-develop/` tree are not part of application startup.
+
+## Camera tab (direct PIXIS control)
+
+The **Camera** tab drives the PIXIS through LightField's automation interface,
+so LightField must be installed (`LIGHTFIELD_ROOT` set) along with `pythonnet`.
+LightField is started by **Connect** or by the first camera action, not at
+program start. Close a manually opened LightField first; only one program can
+own the camera.
+
+| Control | Behavior |
+| --- | --- |
+| Exposure + unit (µs / ms / s), **Set** | Value is shown as `%.2f` and sent to LightField. Changing the unit reinterprets the number. |
+| **Load LF Exp. Setup file** | Loads a `.lfe` experiment *by name* from LightField's own Experiments folder, then shows that experiment's exposure. |
+| **Acquire Spectrum** | Captures with the exposure shown and fits it like a manually selected file. |
+| Background **Collect / Save / Load / Clear** | The mean background frame is subtracted from every measurement. Block the light before collecting. |
+| Flatfield **Left / Right**, **Ref T (K)**, **Collect / Save / Load** | The capture becomes that side's calibration file and Ref T its calibration temperature. |
+
+Captures go to the "Folder for T-fit" as `spectrum_*`, `background_*` and
+`flatfield_<side>_*` with a timestamp; automatic fitting ignores them.
+
+A flatfield from this tab is raw, so the active background is subtracted from
+it as well. Calibration files chosen on the Calibration tab or by the filter
+table are used exactly as saved (the bundled ones are already
+background-subtracted LightField exports). Selecting a filter state replaces a
+flatfield with the table's file for that state. The background must have the
+same image size and wavelength grid as the capture; otherwise it is rejected
+and the previous fit stays on screen.
+
+`camera_control` in the JSON profile sets the starting exposure and how long to
+wait for LightField beyond the exposure itself.
 
 ## Another camera or ROI
 

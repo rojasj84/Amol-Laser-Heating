@@ -147,6 +147,7 @@ class HeatingApplication:
 
         menu("Main").add_command(label="Exit", command=self.root.destroy)
         camera = menu("Spectrometer")
+        camera.add_command(label="Camera Control", command=lambda: self.temperature.select_file_handling(3))
         camera.add_command(label="ROI Settings", command=self.temperature.open_roi_settings)
         camera.add_command(label="Camera Profile", command=lambda: messagebox.showinfo(
             "Camera Profile", f"{self.config.camera.name}\nSaved images: {self.config.camera.width} x {self.config.camera.height}", parent=self.root))
